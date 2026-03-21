@@ -1,0 +1,17 @@
+{
+  "name": "Chronos Timer Workspace",
+  "short_name": "Chronos",
+  "description": "A local-first timer workspace for pomodoro, countdown, stopwatch, and interval sessions.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090f",
+  "theme_color": "#8b5cf6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "48x46",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
