@@ -100,8 +100,6 @@ function App() {
   const timerInputInvalid = !isValidTimeParts(timerInputParts) || timerParsedInputMs === 0
   const timerDisplayMs =
     timerTool.status === 'idle' || timerTool.status === 'stopped' ? 0 : timerTool.mainElapsedMs
-  const countdownShowOverrun = countdown.status === 'done'
-
   const currentTimeParts = activeTool === 'countdown' ? countdownInputParts : timerInputParts
   const currentInputInvalid = activeTool === 'countdown' ? countdownInputInvalid : timerInputInvalid
   const currentDisplayMs = activeTool === 'countdown' ? countdownDisplayMs : timerDisplayMs
@@ -260,6 +258,7 @@ function App() {
     if (
       countdown.status !== 'done' ||
       !countdown.completedAt ||
+      countdown.overrunMs === 0 ||
       countdown.alertedAt === countdown.completedAt
     ) {
       return
@@ -283,7 +282,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [countdown.status, countdown.completedAt, countdown.alertedAt])
+  }, [countdown.status, countdown.completedAt, countdown.overrunMs, countdown.alertedAt])
 
   useEffect(() => {
     if (!timerTool.targetReachedAt || timerTool.alertedAt === timerTool.targetReachedAt) {
@@ -548,7 +547,10 @@ function App() {
           {activeTool === 'countdown' ? (
             <div className="hero-readout-shell">
               <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
-              {countdownShowOverrun ? <OverrunReadout value={countdown.overrunMs} /> : null}
+              <OverrunReadout
+                value={countdown.overrunMs}
+                active={countdown.status === 'done'}
+              />
             </div>
           ) : (
             <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
@@ -940,11 +942,16 @@ function RestartIcon() {
 
 interface OverrunReadoutProps {
   value: number
+  active: boolean
 }
 
-function OverrunReadout({ value }: OverrunReadoutProps) {
+function OverrunReadout({ value, active }: OverrunReadoutProps) {
   return (
-    <div className="subtimer-inline" aria-live="polite">
+    <div
+      className={`subtimer-inline${active ? ' subtimer-inline-active' : ''}`}
+      aria-hidden={!active}
+      {...(active ? { 'aria-live': 'polite' as const } : {})}
+    >
       <span className="subtimer-divider" />
       <div className="subtimer-content">
         <span className="subtimer-label">Overrun</span>
