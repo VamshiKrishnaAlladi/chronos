@@ -15,6 +15,7 @@ type TimePartKey = 'hours' | 'minutes' | 'seconds'
 interface CountdownState {
   durationMs: number
   remainingMs: number
+  overrunMs: number
   endsAt: number | null
   status: CountdownStatus
   completedAt: number | null
@@ -23,7 +24,7 @@ interface CountdownState {
 
 interface TimerToolState {
   targetMs: number
-  elapsedMs: number
+  mainElapsedMs: number
   startedAt: number | null
   status: TimerStatus
   targetReachedAt: number | null
@@ -57,6 +58,7 @@ function App() {
     return {
       durationMs,
       remainingMs: durationMs,
+      overrunMs: 0,
       endsAt: null,
       status: 'idle',
       completedAt: null,
@@ -65,7 +67,7 @@ function App() {
   })
   const [timerTool, setTimerTool] = useState<TimerToolState>(() => ({
     targetMs: parseHmsInput(DEFAULT_TIMER_INPUT),
-    elapsedMs: 0,
+    mainElapsedMs: 0,
     startedAt: null,
     status: 'idle',
     targetReachedAt: null,
@@ -90,7 +92,8 @@ function App() {
   const timerParsedInputMs = timePartsToMs(normalizeTimeParts(timerInputParts))
   const timerInputInvalid = !isValidTimeParts(timerInputParts) || timerParsedInputMs === 0
   const timerDisplayMs =
-    timerTool.status === 'idle' || timerTool.status === 'stopped' ? 0 : timerTool.elapsedMs
+    timerTool.status === 'idle' || timerTool.status === 'stopped' ? 0 : timerTool.mainElapsedMs
+  const countdownShowOverrun = countdown.status === 'done'
 
   const currentTimeParts = activeTool === 'countdown' ? countdownInputParts : timerInputParts
   const currentInputInvalid = activeTool === 'countdown' ? countdownInputInvalid : timerInputInvalid
@@ -100,13 +103,19 @@ function App() {
   const currentProgress =
     activeTool === 'countdown' ? getCountdownProgress(countdown) : getTimerProgress(timerTool)
   const currentIsRunning =
-    activeTool === 'countdown' ? countdown.status === 'running' : timerTool.status === 'running'
+    activeTool === 'countdown'
+      ? countdown.status === 'running'
+      : timerTool.status === 'running'
   const currentIsPaused =
-    activeTool === 'countdown' ? countdown.status === 'paused' : timerTool.status === 'paused'
+    activeTool === 'countdown'
+      ? countdown.status === 'paused'
+      : timerTool.status === 'paused'
   const currentIsIdle =
     activeTool === 'countdown' ? countdown.status === 'idle' : timerTool.status === 'idle'
   const currentShowsRestart =
-    activeTool === 'countdown' ? countdown.status === 'stopped' : timerTool.status === 'stopped'
+    activeTool === 'countdown'
+      ? countdown.status === 'stopped'
+      : timerTool.status === 'stopped'
   const currentInputDisabled = currentIsRunning || currentIsPaused
   const currentToolLabel = TOOL_LABELS[activeTool]
 
@@ -131,6 +140,7 @@ function App() {
           return {
             ...previousTimer,
             remainingMs: 0,
+            overrunMs: 0,
             endsAt: null,
             status: 'done',
             completedAt: tickAt,
@@ -155,6 +165,38 @@ function App() {
   }, [countdown.status, countdown.endsAt])
 
   useEffect(() => {
+    if (countdown.status !== 'done' || countdown.completedAt === null) {
+      return
+    }
+
+    const timerId = window.setInterval(() => {
+      const tickAt = Date.now()
+
+      setCountdown((previousTimer) => {
+        if (previousTimer.status !== 'done' || previousTimer.completedAt === null) {
+          return previousTimer
+        }
+
+        const overrunMs =
+          Math.max(Math.floor((tickAt - previousTimer.completedAt) / 1000), 0) * 1000
+
+        if (overrunMs === previousTimer.overrunMs) {
+          return previousTimer
+        }
+
+        return {
+          ...previousTimer,
+          overrunMs,
+        }
+      })
+    }, 250)
+
+    return () => {
+      window.clearInterval(timerId)
+    }
+  }, [countdown.status, countdown.completedAt])
+
+  useEffect(() => {
     if (timerTool.status !== 'running' || timerTool.startedAt === null) {
       return
     }
@@ -167,23 +209,29 @@ function App() {
           return previousTimer
         }
 
-        const elapsedMs = Math.max(Math.floor((tickAt - previousTimer.startedAt) / 1000), 0) * 1000
+        const mainElapsedMs =
+          Math.max(Math.floor((tickAt - previousTimer.startedAt) / 1000), 0) * 1000
         const reachedTarget =
           previousTimer.targetReachedAt === null &&
           previousTimer.targetMs > 0 &&
-          elapsedMs >= previousTimer.targetMs
+          mainElapsedMs >= previousTimer.targetMs
 
-        if (!reachedTarget && elapsedMs === previousTimer.elapsedMs) {
+        if (!reachedTarget && mainElapsedMs === previousTimer.mainElapsedMs) {
           return previousTimer
+        }
+
+        if (reachedTarget) {
+          return {
+            ...previousTimer,
+            mainElapsedMs,
+            targetReachedAt: previousTimer.startedAt + previousTimer.targetMs,
+            alertedAt: null,
+          }
         }
 
         return {
           ...previousTimer,
-          elapsedMs,
-          targetReachedAt: reachedTarget
-            ? previousTimer.startedAt + previousTimer.targetMs
-            : previousTimer.targetReachedAt,
-          alertedAt: reachedTarget ? null : previousTimer.alertedAt,
+          mainElapsedMs,
         }
       })
     }, 250)
@@ -250,9 +298,6 @@ function App() {
   useEffect(() => {
     const stopAlarm = () => {
       stopCompletionTone()
-      setCountdown((previousTimer) =>
-        previousTimer.status === 'done' ? resetCountdownState(previousTimer) : previousTimer,
-      )
     }
 
     window.addEventListener('pointerdown', stopAlarm)
@@ -332,6 +377,7 @@ function App() {
       return {
         durationMs,
         remainingMs,
+        overrunMs: 0,
         endsAt: actionedAt + remainingMs,
         status: 'running',
         completedAt: null,
@@ -355,17 +401,21 @@ function App() {
     const actionedAt = Date.now()
 
     setTimerTool((previousTimer) => {
-      const targetMs = previousTimer.status === 'paused' ? previousTimer.targetMs : nextTargetMs
-      const elapsedMs = previousTimer.status === 'paused' ? previousTimer.elapsedMs : 0
+      if (previousTimer.status === 'paused') {
+        return {
+          ...previousTimer,
+          startedAt: actionedAt - previousTimer.mainElapsedMs,
+          status: 'running',
+        }
+      }
 
       return {
-        targetMs,
-        elapsedMs,
-        startedAt: actionedAt - elapsedMs,
+        targetMs: nextTargetMs,
+        mainElapsedMs: 0,
+        startedAt: actionedAt,
         status: 'running',
-        targetReachedAt:
-          previousTimer.status === 'paused' ? previousTimer.targetReachedAt : null,
-        alertedAt: previousTimer.status === 'paused' ? previousTimer.alertedAt : null,
+        targetReachedAt: null,
+        alertedAt: null,
       }
     })
   }
@@ -397,20 +447,14 @@ function App() {
         return previousTimer
       }
 
-      const elapsedMs = Math.max(Math.floor((actionedAt - previousTimer.startedAt) / 1000), 0) * 1000
-      const targetReachedAt =
-        previousTimer.targetReachedAt === null &&
-        previousTimer.targetMs > 0 &&
-        elapsedMs >= previousTimer.targetMs
-          ? previousTimer.startedAt + previousTimer.targetMs
-          : previousTimer.targetReachedAt
+      const mainElapsedMs =
+        Math.max(Math.floor((actionedAt - previousTimer.startedAt) / 1000), 0) * 1000
 
       return {
         ...previousTimer,
-        elapsedMs,
+        mainElapsedMs,
         startedAt: null,
         status: 'paused',
-        targetReachedAt,
       }
     })
   }
@@ -421,6 +465,7 @@ function App() {
     setCountdown({
       durationMs: countdownParsedInputMs,
       remainingMs: countdownParsedInputMs,
+      overrunMs: 0,
       endsAt: null,
       status: 'stopped',
       completedAt: null,
@@ -433,7 +478,7 @@ function App() {
 
     setTimerTool({
       targetMs: timerParsedInputMs,
-      elapsedMs: 0,
+      mainElapsedMs: 0,
       startedAt: null,
       status: 'stopped',
       targetReachedAt: null,
@@ -484,7 +529,14 @@ function App() {
 
       <section className="hero">
         <span className="hero-kicker">{currentToolLabel}</span>
-        <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
+        {activeTool === 'countdown' ? (
+          <div className="hero-readout-shell">
+            <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
+            {countdownShowOverrun ? <OverrunReadout value={countdown.overrunMs} /> : null}
+          </div>
+        ) : (
+          <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
+        )}
         <div className="hero-meta">{currentStatusCopy}</div>
 
         <div className="hero-progress">
@@ -573,17 +625,6 @@ function App() {
 }
 
 export default App
-
-function resetCountdownState(timer: CountdownState): CountdownState {
-  return {
-    ...timer,
-    remainingMs: timer.durationMs,
-    endsAt: null,
-    status: 'idle',
-    completedAt: null,
-    alertedAt: null,
-  }
-}
 
 function splitTimeParts(value: string): TimeParts {
   const [hours = '00', minutes = '00', seconds = '00'] = value.split(':')
@@ -695,7 +736,7 @@ function getTimerProgress(timer: TimerToolState): number {
     return 0
   }
 
-  return Math.min(Math.round((timer.elapsedMs / timer.targetMs) * 100), 100)
+  return Math.min(Math.round((timer.mainElapsedMs / timer.targetMs) * 100), 100)
 }
 
 interface TimeSegmentInputProps {
@@ -817,6 +858,22 @@ function RestartIcon() {
         fill="currentColor"
       />
     </svg>
+  )
+}
+
+interface OverrunReadoutProps {
+  value: number
+}
+
+function OverrunReadout({ value }: OverrunReadoutProps) {
+  return (
+    <div className="subtimer-inline" aria-live="polite">
+      <span className="subtimer-divider" />
+      <div className="subtimer-content">
+        <span className="subtimer-label">Overrun</span>
+        <div className="subtimer-readout">{formatDuration(value)}</div>
+      </div>
+    </div>
   )
 }
 

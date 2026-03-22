@@ -25,11 +25,23 @@
 }
 
 .hero-readout {
+  display: inline-block;
+  min-width: 8ch;
   font-family: var(--font-display);
   font-size: clamp(4.5rem, 16vw, 9rem);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
   line-height: 0.9;
   letter-spacing: -0.08em;
   color: var(--text-strong);
+  text-align: center;
+}
+
+.hero-readout-shell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .hero-meta {
@@ -56,6 +68,48 @@
 .hero-controls {
   display: flex;
   gap: 1rem;
+}
+
+.subtimer-inline {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 1rem);
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: clamp(7.5rem, 20vw, 10rem);
+}
+
+.subtimer-divider {
+  width: 1px;
+  height: clamp(2.4rem, 7vw, 4.2rem);
+  background: var(--line);
+}
+
+.subtimer-content {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: start;
+}
+
+.subtimer-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.subtimer-readout {
+  display: inline-block;
+  min-width: 8ch;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 8vw, 3rem);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+  color: var(--text);
 }
 
 .input-strip {
@@ -211,6 +265,16 @@ h1 {
 
   .hero-readout {
     font-size: clamp(3.4rem, 20vw, 5.8rem);
+  }
+
+  .subtimer-inline {
+    gap: 0.65rem;
+    left: calc(100% + 0.75rem);
+    min-width: 5.9rem;
+  }
+
+  .subtimer-readout {
+    font-size: clamp(1.2rem, 6vw, 1.8rem);
   }
 
   .hero-controls {
