@@ -37,8 +37,15 @@ interface TimeParts {
   seconds: string
 }
 
+interface StoredPreferences {
+  activeTool: ToolKind
+  countdownInputParts: TimeParts
+  timerInputParts: TimeParts
+}
+
 const DEFAULT_COUNTDOWN_INPUT = '00:25:00'
 const DEFAULT_TIMER_INPUT = '00:25:00'
+const PREFERENCES_STORAGE_KEY = 'chronos-preferences-v1'
 const TIME_PART_ORDER: TimePartKey[] = ['hours', 'minutes', 'seconds']
 const TOOL_LABELS: Record<ToolKind, string> = {
   countdown: 'Countdown',
@@ -46,12 +53,12 @@ const TOOL_LABELS: Record<ToolKind, string> = {
 }
 
 function App() {
-  const [activeTool, setActiveTool] = useState<ToolKind>('countdown')
+  const [activeTool, setActiveTool] = useState<ToolKind>(() => loadStoredPreferences().activeTool)
   const [countdownInputParts, setCountdownInputParts] = useState<TimeParts>(() =>
-    splitTimeParts(DEFAULT_COUNTDOWN_INPUT),
+    loadStoredPreferences().countdownInputParts,
   )
   const [timerInputParts, setTimerInputParts] = useState<TimeParts>(() =>
-    splitTimeParts(DEFAULT_TIMER_INPUT),
+    loadStoredPreferences().timerInputParts,
   )
   const [countdown, setCountdown] = useState<CountdownState>(() => {
     const durationMs = parseHmsInput(DEFAULT_COUNTDOWN_INPUT)
@@ -118,6 +125,14 @@ function App() {
       : timerTool.status === 'stopped'
   const currentInputDisabled = currentIsRunning || currentIsPaused
   const currentToolLabel = TOOL_LABELS[activeTool]
+
+  useEffect(() => {
+    saveStoredPreferences({
+      activeTool,
+      countdownInputParts,
+      timerInputParts,
+    })
+  }, [activeTool, countdownInputParts, timerInputParts])
 
   useEffect(() => {
     if (countdown.status !== 'running' || !countdown.endsAt) {
@@ -625,6 +640,66 @@ function App() {
 }
 
 export default App
+
+function loadStoredPreferences(): StoredPreferences {
+  const defaults: StoredPreferences = {
+    activeTool: 'countdown',
+    countdownInputParts: splitTimeParts(DEFAULT_COUNTDOWN_INPUT),
+    timerInputParts: splitTimeParts(DEFAULT_TIMER_INPUT),
+  }
+
+  if (typeof window === 'undefined') {
+    return defaults
+  }
+
+  const storedValue = window.localStorage.getItem(PREFERENCES_STORAGE_KEY)
+  if (!storedValue) {
+    return defaults
+  }
+
+  try {
+    const parsed = JSON.parse(storedValue) as Partial<StoredPreferences>
+
+    return {
+      activeTool: parsed.activeTool === 'timer' ? 'timer' : 'countdown',
+      countdownInputParts: parseStoredTimeParts(parsed.countdownInputParts, DEFAULT_COUNTDOWN_INPUT),
+      timerInputParts: parseStoredTimeParts(parsed.timerInputParts, DEFAULT_TIMER_INPUT),
+    }
+  } catch {
+    return defaults
+  }
+}
+
+function saveStoredPreferences(preferences: StoredPreferences): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences))
+}
+
+function parseStoredTimeParts(value: unknown, fallback: string): TimeParts {
+  if (!isStoredTimeParts(value)) {
+    return splitTimeParts(fallback)
+  }
+
+  return {
+    hours: value.hours,
+    minutes: value.minutes,
+    seconds: value.seconds,
+  }
+}
+
+function isStoredTimeParts(value: unknown): value is TimeParts {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const parts = value as Record<string, unknown>
+  return ['hours', 'minutes', 'seconds'].every(
+    (partKey) => typeof parts[partKey] === 'string' && /^\d{0,2}$/.test(parts[partKey] as string),
+  )
+}
 
 function splitTimeParts(value: string): TimeParts {
   const [hours = '00', minutes = '00', seconds = '00'] = value.split(':')
