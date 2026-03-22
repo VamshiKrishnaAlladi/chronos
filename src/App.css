@@ -3,7 +3,7 @@
   display: grid;
   align-content: center;
   gap: 1.5rem;
-  padding: 2rem 1.5rem;
+  padding: 2rem 1.5rem 5.5rem;
 }
 
 .topbar {
@@ -139,8 +139,8 @@
 }
 
 .icon-button svg {
-  width: 1.8rem;
-  height: 1.8rem;
+  width: 2.5rem;
+  height: 2.5rem;
 }
 
 .icon-button-active {
@@ -159,6 +159,38 @@
   outline-offset: 4px;
 }
 
+.tool-menu {
+  position: fixed;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 10;
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+}
+
+.tool-menu-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-menu-item-active {
+  color: var(--text-strong);
+}
+
+.tool-menu-item:focus-visible {
+  outline: none;
+  color: var(--accent);
+}
+
 h1,
 p {
   margin: 0;
@@ -174,7 +206,7 @@ h1 {
 
 @media (max-width: 640px) {
   .app-shell {
-    padding: 1.25rem 1rem;
+    padding: 1.25rem 1rem 5.25rem;
   }
 
   .hero-readout {
@@ -188,5 +220,10 @@ h1 {
   .icon-button {
     width: 3.75rem;
     height: 3.75rem;
+  }
+
+  .tool-menu {
+    left: 1rem;
+    bottom: 1rem;
   }
 }

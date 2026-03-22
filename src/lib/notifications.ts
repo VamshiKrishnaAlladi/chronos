@@ -1,7 +1,7 @@
 type CompletionNotificationTarget = {
   id: string
   label: string
-  kind: 'countdown' | 'stopwatch' | 'pomodoro' | 'interval'
+  kind: 'countdown' | 'timer' | 'stopwatch' | 'pomodoro' | 'interval'
 }
 
 export type AppNotificationPermission = NotificationPermission | 'unsupported'
@@ -39,7 +39,9 @@ export async function showCompletionNotification(
 
   const title = `Timer finished: ${timer.label}`
   const body =
-    timer.kind === 'stopwatch'
+    timer.kind === 'timer'
+      ? 'Your timer reached its alert point while Chronos was open.'
+      : timer.kind === 'stopwatch'
       ? 'Your stopwatch was stopped or completed.'
       : 'Your timer completed while Chronos was open.'
 

@@ -7,7 +7,10 @@ import {
   stopCompletionTone,
 } from './lib/notifications'
 
-type CountdownStatus = 'idle' | 'running' | 'paused' | 'done'
+type ToolKind = 'countdown' | 'timer'
+type CountdownStatus = 'idle' | 'running' | 'paused' | 'stopped' | 'done'
+type TimerStatus = 'idle' | 'running' | 'paused' | 'stopped'
+type TimePartKey = 'hours' | 'minutes' | 'seconds'
 
 interface CountdownState {
   durationMs: number
@@ -18,7 +21,14 @@ interface CountdownState {
   alertedAt: number | null
 }
 
-type TimePartKey = 'hours' | 'minutes' | 'seconds'
+interface TimerToolState {
+  targetMs: number
+  elapsedMs: number
+  startedAt: number | null
+  status: TimerStatus
+  targetReachedAt: number | null
+  alertedAt: number | null
+}
 
 interface TimeParts {
   hours: string
@@ -26,13 +36,24 @@ interface TimeParts {
   seconds: string
 }
 
-const DEFAULT_INPUT = '00:25:00'
+const DEFAULT_COUNTDOWN_INPUT = '00:25:00'
+const DEFAULT_TIMER_INPUT = '00:25:00'
 const TIME_PART_ORDER: TimePartKey[] = ['hours', 'minutes', 'seconds']
+const TOOL_LABELS: Record<ToolKind, string> = {
+  countdown: 'Countdown',
+  timer: 'Timer',
+}
 
 function App() {
-  const [timeParts, setTimeParts] = useState<TimeParts>(() => splitTimeParts(DEFAULT_INPUT))
-  const [timer, setTimer] = useState<CountdownState>(() => {
-    const durationMs = parseHmsInput(DEFAULT_INPUT)
+  const [activeTool, setActiveTool] = useState<ToolKind>('countdown')
+  const [countdownInputParts, setCountdownInputParts] = useState<TimeParts>(() =>
+    splitTimeParts(DEFAULT_COUNTDOWN_INPUT),
+  )
+  const [timerInputParts, setTimerInputParts] = useState<TimeParts>(() =>
+    splitTimeParts(DEFAULT_TIMER_INPUT),
+  )
+  const [countdown, setCountdown] = useState<CountdownState>(() => {
+    const durationMs = parseHmsInput(DEFAULT_COUNTDOWN_INPUT)
     return {
       durationMs,
       remainingMs: durationMs,
@@ -42,27 +63,62 @@ function App() {
       alertedAt: null,
     }
   })
+  const [timerTool, setTimerTool] = useState<TimerToolState>(() => ({
+    targetMs: parseHmsInput(DEFAULT_TIMER_INPUT),
+    elapsedMs: 0,
+    startedAt: null,
+    status: 'idle',
+    targetReachedAt: null,
+    alertedAt: null,
+  }))
   const inputRefs = {
     hours: useRef<HTMLInputElement>(null),
     minutes: useRef<HTMLInputElement>(null),
     seconds: useRef<HTMLInputElement>(null),
   }
 
-  const normalizedTimeParts = normalizeTimeParts(timeParts)
-  const parsedInputMs = timePartsToMs(normalizedTimeParts)
-  const inputInvalid = !isValidTimeParts(timeParts) || parsedInputMs === 0
-  const previewMs = parsedInputMs > 0 ? parsedInputMs : timer.durationMs
-  const displayMs = timer.status === 'idle' ? previewMs : timer.remainingMs
+  const countdownParsedInputMs = timePartsToMs(normalizeTimeParts(countdownInputParts))
+  const countdownInputInvalid =
+    !isValidTimeParts(countdownInputParts) || countdownParsedInputMs === 0
+  const countdownPreviewMs =
+    countdownParsedInputMs > 0 ? countdownParsedInputMs : countdown.durationMs
+  const countdownDisplayMs =
+    countdown.status === 'idle' || countdown.status === 'stopped'
+      ? countdownPreviewMs
+      : countdown.remainingMs
+
+  const timerParsedInputMs = timePartsToMs(normalizeTimeParts(timerInputParts))
+  const timerInputInvalid = !isValidTimeParts(timerInputParts) || timerParsedInputMs === 0
+  const timerDisplayMs =
+    timerTool.status === 'idle' || timerTool.status === 'stopped' ? 0 : timerTool.elapsedMs
+
+  const currentTimeParts = activeTool === 'countdown' ? countdownInputParts : timerInputParts
+  const currentInputInvalid = activeTool === 'countdown' ? countdownInputInvalid : timerInputInvalid
+  const currentDisplayMs = activeTool === 'countdown' ? countdownDisplayMs : timerDisplayMs
+  const currentStatusCopy =
+    activeTool === 'countdown' ? countdownStatusCopy(countdown) : timerStatusCopy(timerTool)
+  const currentProgress =
+    activeTool === 'countdown' ? getCountdownProgress(countdown) : getTimerProgress(timerTool)
+  const currentIsRunning =
+    activeTool === 'countdown' ? countdown.status === 'running' : timerTool.status === 'running'
+  const currentIsPaused =
+    activeTool === 'countdown' ? countdown.status === 'paused' : timerTool.status === 'paused'
+  const currentIsIdle =
+    activeTool === 'countdown' ? countdown.status === 'idle' : timerTool.status === 'idle'
+  const currentShowsRestart =
+    activeTool === 'countdown' ? countdown.status === 'stopped' : timerTool.status === 'stopped'
+  const currentInputDisabled = currentIsRunning || currentIsPaused
+  const currentToolLabel = TOOL_LABELS[activeTool]
 
   useEffect(() => {
-    if (timer.status !== 'running' || !timer.endsAt) {
+    if (countdown.status !== 'running' || !countdown.endsAt) {
       return
     }
 
     const timerId = window.setInterval(() => {
       const tickAt = Date.now()
 
-      setTimer((previousTimer) => {
+      setCountdown((previousTimer) => {
         if (previousTimer.status !== 'running' || !previousTimer.endsAt) {
           return previousTimer
         }
@@ -70,6 +126,7 @@ function App() {
         const rawRemainingMs = Math.max(previousTimer.endsAt - tickAt, 0)
         const remainingMs =
           rawRemainingMs === 0 ? 0 : Math.ceil(rawRemainingMs / 1000) * 1000
+
         if (remainingMs === 0) {
           return {
             ...previousTimer,
@@ -95,10 +152,53 @@ function App() {
     return () => {
       window.clearInterval(timerId)
     }
-  }, [timer.status, timer.endsAt])
+  }, [countdown.status, countdown.endsAt])
 
   useEffect(() => {
-    if (timer.status !== 'done' || !timer.completedAt || timer.alertedAt === timer.completedAt) {
+    if (timerTool.status !== 'running' || timerTool.startedAt === null) {
+      return
+    }
+
+    const timerId = window.setInterval(() => {
+      const tickAt = Date.now()
+
+      setTimerTool((previousTimer) => {
+        if (previousTimer.status !== 'running' || previousTimer.startedAt === null) {
+          return previousTimer
+        }
+
+        const elapsedMs = Math.max(Math.floor((tickAt - previousTimer.startedAt) / 1000), 0) * 1000
+        const reachedTarget =
+          previousTimer.targetReachedAt === null &&
+          previousTimer.targetMs > 0 &&
+          elapsedMs >= previousTimer.targetMs
+
+        if (!reachedTarget && elapsedMs === previousTimer.elapsedMs) {
+          return previousTimer
+        }
+
+        return {
+          ...previousTimer,
+          elapsedMs,
+          targetReachedAt: reachedTarget
+            ? previousTimer.startedAt + previousTimer.targetMs
+            : previousTimer.targetReachedAt,
+          alertedAt: reachedTarget ? null : previousTimer.alertedAt,
+        }
+      })
+    }, 250)
+
+    return () => {
+      window.clearInterval(timerId)
+    }
+  }, [timerTool.status, timerTool.startedAt])
+
+  useEffect(() => {
+    if (
+      countdown.status !== 'done' ||
+      !countdown.completedAt ||
+      countdown.alertedAt === countdown.completedAt
+    ) {
       return
     }
 
@@ -110,9 +210,9 @@ function App() {
         return
       }
 
-      setTimer((previousTimer) =>
-        previousTimer.completedAt === timer.completedAt
-          ? { ...previousTimer, alertedAt: timer.completedAt }
+      setCountdown((previousTimer) =>
+        previousTimer.completedAt === countdown.completedAt
+          ? { ...previousTimer, alertedAt: countdown.completedAt }
           : previousTimer,
       )
     })()
@@ -120,22 +220,38 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [timer.status, timer.completedAt, timer.alertedAt])
+  }, [countdown.status, countdown.completedAt, countdown.alertedAt])
+
+  useEffect(() => {
+    if (!timerTool.targetReachedAt || timerTool.alertedAt === timerTool.targetReachedAt) {
+      return
+    }
+
+    let cancelled = false
+
+    void (async () => {
+      await startRepeatingCompletionTone()
+      if (cancelled) {
+        return
+      }
+
+      setTimerTool((previousTimer) =>
+        previousTimer.targetReachedAt === timerTool.targetReachedAt
+          ? { ...previousTimer, alertedAt: timerTool.targetReachedAt }
+          : previousTimer,
+      )
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [timerTool.targetReachedAt, timerTool.alertedAt])
 
   useEffect(() => {
     const stopAlarm = () => {
       stopCompletionTone()
-      setTimer((previousTimer) =>
-        previousTimer.status === 'done'
-          ? {
-              ...previousTimer,
-              remainingMs: previousTimer.durationMs,
-              endsAt: null,
-              status: 'idle',
-              completedAt: null,
-              alertedAt: null,
-            }
-          : previousTimer,
+      setCountdown((previousTimer) =>
+        previousTimer.status === 'done' ? resetCountdownState(previousTimer) : previousTimer,
       )
     }
 
@@ -149,10 +265,55 @@ function App() {
   }, [])
 
   async function handleStart() {
+    if (activeTool === 'countdown') {
+      await handleCountdownStart()
+      return
+    }
+
+    await handleTimerStart()
+  }
+
+  function handlePause() {
+    if (activeTool === 'countdown') {
+      handleCountdownPause()
+      return
+    }
+
+    handleTimerPause()
+  }
+
+  function handleStop() {
+    if (activeTool === 'countdown') {
+      handleCountdownStop()
+      return
+    }
+
+    handleTimerStop()
+  }
+
+  async function handlePrimaryAction() {
+    if (currentIsRunning) {
+      handlePause()
+      return
+    }
+
+    await handleStart()
+  }
+
+  async function handleSecondaryAction() {
+    if (currentShowsRestart) {
+      await handleStart()
+      return
+    }
+
+    handleStop()
+  }
+
+  async function handleCountdownStart() {
     stopCompletionTone()
 
-    const nextTimeParts = normalizeTimeParts(timeParts)
-    setTimeParts(nextTimeParts)
+    const nextTimeParts = normalizeTimeParts(countdownInputParts)
+    setCountdownInputParts(nextTimeParts)
 
     const nextDurationMs = timePartsToMs(nextTimeParts)
     if (!isValidTimeParts(nextTimeParts) || nextDurationMs === 0) {
@@ -162,16 +323,16 @@ function App() {
     await primeAudio()
     const actionedAt = Date.now()
 
-    setTimer((previousTimer) => {
+    setCountdown((previousTimer) => {
       const durationMs =
         previousTimer.status === 'paused' ? previousTimer.durationMs : nextDurationMs
-      const nextRemainingMs =
+      const remainingMs =
         previousTimer.status === 'paused' ? previousTimer.remainingMs : nextDurationMs
 
       return {
         durationMs,
-        remainingMs: nextRemainingMs,
-        endsAt: actionedAt + nextRemainingMs,
+        remainingMs,
+        endsAt: actionedAt + remainingMs,
         status: 'running',
         completedAt: null,
         alertedAt: null,
@@ -179,11 +340,41 @@ function App() {
     })
   }
 
-  function handlePause() {
+  async function handleTimerStart() {
+    stopCompletionTone()
+
+    const nextTimeParts = normalizeTimeParts(timerInputParts)
+    setTimerInputParts(nextTimeParts)
+
+    const nextTargetMs = timePartsToMs(nextTimeParts)
+    if (!isValidTimeParts(nextTimeParts) || nextTargetMs === 0) {
+      return
+    }
+
+    await primeAudio()
+    const actionedAt = Date.now()
+
+    setTimerTool((previousTimer) => {
+      const targetMs = previousTimer.status === 'paused' ? previousTimer.targetMs : nextTargetMs
+      const elapsedMs = previousTimer.status === 'paused' ? previousTimer.elapsedMs : 0
+
+      return {
+        targetMs,
+        elapsedMs,
+        startedAt: actionedAt - elapsedMs,
+        status: 'running',
+        targetReachedAt:
+          previousTimer.status === 'paused' ? previousTimer.targetReachedAt : null,
+        alertedAt: previousTimer.status === 'paused' ? previousTimer.alertedAt : null,
+      }
+    })
+  }
+
+  function handleCountdownPause() {
     stopCompletionTone()
     const actionedAt = Date.now()
 
-    setTimer((previousTimer) => {
+    setCountdown((previousTimer) => {
       if (previousTimer.status !== 'running' || !previousTimer.endsAt) {
         return previousTimer
       }
@@ -197,17 +388,92 @@ function App() {
     })
   }
 
-  function handleStop() {
+  function handleTimerPause() {
+    stopCompletionTone()
+    const actionedAt = Date.now()
+
+    setTimerTool((previousTimer) => {
+      if (previousTimer.status !== 'running' || previousTimer.startedAt === null) {
+        return previousTimer
+      }
+
+      const elapsedMs = Math.max(Math.floor((actionedAt - previousTimer.startedAt) / 1000), 0) * 1000
+      const targetReachedAt =
+        previousTimer.targetReachedAt === null &&
+        previousTimer.targetMs > 0 &&
+        elapsedMs >= previousTimer.targetMs
+          ? previousTimer.startedAt + previousTimer.targetMs
+          : previousTimer.targetReachedAt
+
+      return {
+        ...previousTimer,
+        elapsedMs,
+        startedAt: null,
+        status: 'paused',
+        targetReachedAt,
+      }
+    })
+  }
+
+  function handleCountdownStop() {
     stopCompletionTone()
 
-    setTimer({
-      durationMs: parsedInputMs,
-      remainingMs: parsedInputMs,
+    setCountdown({
+      durationMs: countdownParsedInputMs,
+      remainingMs: countdownParsedInputMs,
       endsAt: null,
-      status: 'idle',
+      status: 'stopped',
       completedAt: null,
       alertedAt: null,
     })
+  }
+
+  function handleTimerStop() {
+    stopCompletionTone()
+
+    setTimerTool({
+      targetMs: timerParsedInputMs,
+      elapsedMs: 0,
+      startedAt: null,
+      status: 'stopped',
+      targetReachedAt: null,
+      alertedAt: null,
+    })
+  }
+
+  function updateVisibleInputPart(part: TimePartKey, value: string) {
+    if (activeTool === 'countdown') {
+      setCountdownInputParts((previousParts) => ({
+        ...previousParts,
+        [part]: value,
+      }))
+      return
+    }
+
+    setTimerInputParts((previousParts) => ({
+      ...previousParts,
+      [part]: value,
+    }))
+  }
+
+  function padVisibleInputPart(part: TimePartKey) {
+    if (activeTool === 'countdown') {
+      setCountdownInputParts((previousParts) => ({
+        ...previousParts,
+        [part]: padTimePart(previousParts[part]),
+      }))
+      return
+    }
+
+    setTimerInputParts((previousParts) => ({
+      ...previousParts,
+      [part]: padTimePart(previousParts[part]),
+    }))
+  }
+
+  function focusInputPart(part: TimePartKey) {
+    inputRefs[part].current?.focus()
+    inputRefs[part].current?.select()
   }
 
   return (
@@ -217,49 +483,29 @@ function App() {
       </header>
 
       <section className="hero">
-        <span className="hero-kicker">Countdown</span>
-        <div className="hero-readout">{formatDuration(displayMs)}</div>
-        <div className="hero-meta">{statusCopy(timer)}</div>
+        <span className="hero-kicker">{currentToolLabel}</span>
+        <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
+        <div className="hero-meta">{currentStatusCopy}</div>
 
         <div className="hero-progress">
-          <span
-            style={{
-              width: `${
-                timer.status === 'idle'
-                  ? 0
-                  : timer.durationMs > 0
-                    ? Math.round(((timer.durationMs - timer.remainingMs) / timer.durationMs) * 100)
-                    : 0
-              }%`,
-            }}
-          />
+          <span style={{ width: `${currentProgress}%` }} />
         </div>
 
         <div className="hero-controls">
           <IconButton
-            label={timer.status === 'paused' ? 'Resume countdown' : 'Start countdown'}
-            onClick={() => void handleStart()}
-            active={timer.status === 'running'}
-            disabled={timer.status === 'running' || inputInvalid}
-            large
+            label={currentIsRunning ? `Pause ${activeTool}` : `Start ${activeTool}`}
+            onClick={() => void handlePrimaryAction()}
+            active={currentIsRunning}
+            disabled={!currentIsRunning && currentInputInvalid}
           >
-            <PlayIcon />
+            {currentIsRunning ? <PauseIcon /> : <PlayIcon />}
           </IconButton>
           <IconButton
-            label="Pause countdown"
-            onClick={handlePause}
-            disabled={timer.status !== 'running'}
-            large
+            label={currentShowsRestart ? `Restart ${activeTool}` : `Stop ${activeTool}`}
+            onClick={() => void handleSecondaryAction()}
+            disabled={!currentShowsRestart && currentIsIdle}
           >
-            <PauseIcon />
-          </IconButton>
-          <IconButton
-            label="Stop countdown"
-            onClick={handleStop}
-            disabled={timer.status === 'idle'}
-            large
-          >
-            <StopIcon />
+            {currentShowsRestart ? <RestartIcon /> : <StopIcon />}
           </IconButton>
         </div>
       </section>
@@ -267,49 +513,31 @@ function App() {
       <section className="input-strip">
         <label className="inline-input">
           <span>HH:MM:SS</span>
-          <div className="time-input-group" aria-invalid={inputInvalid}>
+          <div className="time-input-group" aria-invalid={currentInputInvalid}>
             {TIME_PART_ORDER.map((part, index) => (
               <span key={part} className="time-segment-wrap">
                 <TimeSegmentInput
                   inputRef={inputRefs[part]}
                   label={part}
-                  value={timeParts[part]}
-                  disabled={timer.status === 'running' || timer.status === 'paused'}
+                  value={currentTimeParts[part]}
+                  disabled={currentInputDisabled}
                   onFocus={stopCompletionTone}
                   onChange={(value) => {
-                    setTimeParts((previousParts) => ({
-                      ...previousParts,
-                      [part]: value,
-                    }))
+                    updateVisibleInputPart(part, value)
 
                     if (value.length === 2 && index < TIME_PART_ORDER.length - 1) {
-                      const nextRef = inputRefs[TIME_PART_ORDER[index + 1]]
-                      nextRef.current?.focus()
-                      nextRef.current?.select()
+                      focusInputPart(TIME_PART_ORDER[index + 1])
                     }
                   }}
-                  onBlur={() =>
-                    setTimeParts((previousParts) => ({
-                      ...previousParts,
-                      [part]: padTimePart(previousParts[part]),
-                    }))
-                  }
+                  onBlur={() => {
+                    padVisibleInputPart(part)
+                  }}
                   onMovePrevious={
-                    index > 0
-                      ? () => {
-                          const previousRef = inputRefs[TIME_PART_ORDER[index - 1]]
-                          previousRef.current?.focus()
-                          previousRef.current?.select()
-                        }
-                      : undefined
+                    index > 0 ? () => focusInputPart(TIME_PART_ORDER[index - 1]) : undefined
                   }
                   onMoveNext={
                     index < TIME_PART_ORDER.length - 1
-                      ? () => {
-                          const nextRef = inputRefs[TIME_PART_ORDER[index + 1]]
-                          nextRef.current?.focus()
-                          nextRef.current?.select()
-                        }
+                      ? () => focusInputPart(TIME_PART_ORDER[index + 1])
                       : undefined
                   }
                 />
@@ -323,11 +551,39 @@ function App() {
           </div>
         </label>
       </section>
+
+      <div className="tool-menu" role="tablist" aria-label="Timer tools">
+        {(['countdown', 'timer'] as ToolKind[]).map((tool) => (
+          <button
+            key={tool}
+            type="button"
+            className={`tool-menu-item${tool === activeTool ? ' tool-menu-item-active' : ''}`}
+            onClick={() => {
+              setActiveTool(tool)
+            }}
+            role="tab"
+            aria-selected={tool === activeTool}
+          >
+            {TOOL_LABELS[tool]}
+          </button>
+        ))}
+      </div>
     </main>
   )
 }
 
 export default App
+
+function resetCountdownState(timer: CountdownState): CountdownState {
+  return {
+    ...timer,
+    remainingMs: timer.durationMs,
+    endsAt: null,
+    status: 'idle',
+    completedAt: null,
+    alertedAt: null,
+  }
+}
 
 function splitTimeParts(value: string): TimeParts {
   const [hours = '00', minutes = '00', seconds = '00'] = value.split(':')
@@ -390,7 +646,7 @@ function formatClockTime(timestamp: number): string {
   return dayjs(timestamp).format('hh:mm:ss A')
 }
 
-function statusCopy(timer: CountdownState): string {
+function countdownStatusCopy(timer: CountdownState): string {
   switch (timer.status) {
     case 'idle':
       return 'Ready'
@@ -398,9 +654,48 @@ function statusCopy(timer: CountdownState): string {
       return timer.endsAt ? `Ends ${formatClockTime(timer.endsAt)}` : 'Running'
     case 'paused':
       return 'Paused'
+    case 'stopped':
+      return 'Stopped'
     case 'done':
       return 'Done'
   }
+}
+
+function timerStatusCopy(timer: TimerToolState): string {
+  if (timer.targetReachedAt) {
+    return `Alerted ${formatClockTime(timer.targetReachedAt)}`
+  }
+
+  switch (timer.status) {
+    case 'idle':
+      return 'Ready'
+    case 'running':
+      return timer.startedAt ? `Alerts ${formatClockTime(timer.startedAt + timer.targetMs)}` : 'Running'
+    case 'paused':
+      return 'Paused'
+    case 'stopped':
+      return 'Stopped'
+  }
+}
+
+function getCountdownProgress(timer: CountdownState): number {
+  if (timer.status === 'idle' || timer.status === 'stopped') {
+    return 0
+  }
+
+  if (timer.durationMs <= 0) {
+    return 0
+  }
+
+  return Math.round(((timer.durationMs - timer.remainingMs) / timer.durationMs) * 100)
+}
+
+function getTimerProgress(timer: TimerToolState): number {
+  if (timer.status === 'idle' || timer.status === 'stopped' || timer.targetMs <= 0) {
+    return 0
+  }
+
+  return Math.min(Math.round((timer.elapsedMs / timer.targetMs) * 100), 100)
 }
 
 interface TimeSegmentInputProps {
@@ -473,13 +768,13 @@ interface IconButtonProps {
   onClick: () => void
   active?: boolean
   disabled?: boolean
-  large?: boolean
 }
 
-function IconButton({ children, label, onClick, active, disabled, large }: IconButtonProps) {
+function IconButton({ children, label, onClick, active, disabled }: IconButtonProps) {
   return (
     <button
-      className={`icon-button${active ? ' icon-button-active' : ''}${large ? ' icon-button-large' : ''}`}
+      type="button"
+      className={`icon-button${active ? ' icon-button-active' : ''}`}
       onClick={onClick}
       aria-label={label}
       title={label}
@@ -513,3 +808,15 @@ function StopIcon() {
     </svg>
   )
 }
+
+function RestartIcon() {
+  return (
+    <svg className="restart-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M16.4017 6.28616C16.4017 5.98121 16.217 5.70662 15.9346 5.59158C15.6522 5.47653 15.3283 5.54393 15.1152 5.76208L14.3647 6.53037C12.244 5.55465 9.66551 5.95905 7.92796 7.7378C5.69068 10.0281 5.69068 13.7344 7.92796 16.0247C10.1748 18.3248 13.8252 18.3248 16.072 16.0247C17.3754 14.6904 17.9168 12.8779 17.7055 11.1507C17.6552 10.7396 17.2812 10.447 16.87 10.4973C16.4589 10.5476 16.1663 10.9217 16.2166 11.3328C16.3757 12.6335 15.9667 13.9859 14.999 14.9765C13.3407 16.6742 10.6593 16.6742 9.00097 14.9765C7.33301 13.269 7.33301 10.4935 9.00097 8.78596C10.1467 7.61303 11.7795 7.25143 13.225 7.69705L12.4635 8.47659C12.2527 8.69245 12.1917 9.01364 12.3088 9.29174C12.4259 9.56984 12.6983 9.75067 13 9.75067H15.6517C16.0659 9.75067 16.4017 9.41489 16.4017 9.00067V6.28616Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
