@@ -538,86 +538,88 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <h1>Chronos</h1>
-      </header>
+      <div className="app-center">
+        <header className="topbar">
+          <h1>Chronos</h1>
+        </header>
 
-      <section className="hero">
-        <span className="hero-kicker">{currentToolLabel}</span>
-        {activeTool === 'countdown' ? (
-          <div className="hero-readout-shell">
+        <section className="hero">
+          <span className="hero-kicker">{currentToolLabel}</span>
+          {activeTool === 'countdown' ? (
+            <div className="hero-readout-shell">
+              <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
+              {countdownShowOverrun ? <OverrunReadout value={countdown.overrunMs} /> : null}
+            </div>
+          ) : (
             <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
-            {countdownShowOverrun ? <OverrunReadout value={countdown.overrunMs} /> : null}
+          )}
+          <div className="hero-meta">{currentStatusCopy}</div>
+
+          <div className="hero-progress">
+            <span style={{ width: `${currentProgress}%` }} />
           </div>
-        ) : (
-          <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
-        )}
-        <div className="hero-meta">{currentStatusCopy}</div>
 
-        <div className="hero-progress">
-          <span style={{ width: `${currentProgress}%` }} />
-        </div>
+          <div className="hero-controls">
+            <IconButton
+              label={currentIsRunning ? `Pause ${activeTool}` : `Start ${activeTool}`}
+              onClick={() => void handlePrimaryAction()}
+              active={currentIsRunning}
+              disabled={!currentIsRunning && currentInputInvalid}
+            >
+              {currentIsRunning ? <PauseIcon /> : <PlayIcon />}
+            </IconButton>
+            <IconButton
+              label={currentShowsRestart ? `Restart ${activeTool}` : `Stop ${activeTool}`}
+              onClick={() => void handleSecondaryAction()}
+              disabled={!currentShowsRestart && currentIsIdle}
+            >
+              {currentShowsRestart ? <RestartIcon /> : <StopIcon />}
+            </IconButton>
+          </div>
+        </section>
 
-        <div className="hero-controls">
-          <IconButton
-            label={currentIsRunning ? `Pause ${activeTool}` : `Start ${activeTool}`}
-            onClick={() => void handlePrimaryAction()}
-            active={currentIsRunning}
-            disabled={!currentIsRunning && currentInputInvalid}
-          >
-            {currentIsRunning ? <PauseIcon /> : <PlayIcon />}
-          </IconButton>
-          <IconButton
-            label={currentShowsRestart ? `Restart ${activeTool}` : `Stop ${activeTool}`}
-            onClick={() => void handleSecondaryAction()}
-            disabled={!currentShowsRestart && currentIsIdle}
-          >
-            {currentShowsRestart ? <RestartIcon /> : <StopIcon />}
-          </IconButton>
-        </div>
-      </section>
+        <section className="input-strip">
+          <label className="inline-input">
+            <span>HH:MM:SS</span>
+            <div className="time-input-group" aria-invalid={currentInputInvalid}>
+              {TIME_PART_ORDER.map((part, index) => (
+                <span key={part} className="time-segment-wrap">
+                  <TimeSegmentInput
+                    inputRef={inputRefs[part]}
+                    label={part}
+                    value={currentTimeParts[part]}
+                    disabled={currentInputDisabled}
+                    onFocus={stopCompletionTone}
+                    onChange={(value) => {
+                      updateVisibleInputPart(part, value)
 
-      <section className="input-strip">
-        <label className="inline-input">
-          <span>HH:MM:SS</span>
-          <div className="time-input-group" aria-invalid={currentInputInvalid}>
-            {TIME_PART_ORDER.map((part, index) => (
-              <span key={part} className="time-segment-wrap">
-                <TimeSegmentInput
-                  inputRef={inputRefs[part]}
-                  label={part}
-                  value={currentTimeParts[part]}
-                  disabled={currentInputDisabled}
-                  onFocus={stopCompletionTone}
-                  onChange={(value) => {
-                    updateVisibleInputPart(part, value)
-
-                    if (value.length === 2 && index < TIME_PART_ORDER.length - 1) {
-                      focusInputPart(TIME_PART_ORDER[index + 1])
+                      if (value.length === 2 && index < TIME_PART_ORDER.length - 1) {
+                        focusInputPart(TIME_PART_ORDER[index + 1])
+                      }
+                    }}
+                    onBlur={() => {
+                      padVisibleInputPart(part)
+                    }}
+                    onMovePrevious={
+                      index > 0 ? () => focusInputPart(TIME_PART_ORDER[index - 1]) : undefined
                     }
-                  }}
-                  onBlur={() => {
-                    padVisibleInputPart(part)
-                  }}
-                  onMovePrevious={
-                    index > 0 ? () => focusInputPart(TIME_PART_ORDER[index - 1]) : undefined
-                  }
-                  onMoveNext={
-                    index < TIME_PART_ORDER.length - 1
-                      ? () => focusInputPart(TIME_PART_ORDER[index + 1])
-                      : undefined
-                  }
-                />
-                {index < TIME_PART_ORDER.length - 1 ? (
-                  <span className="time-colon" aria-hidden="true">
-                    :
-                  </span>
-                ) : null}
-              </span>
-            ))}
-          </div>
-        </label>
-      </section>
+                    onMoveNext={
+                      index < TIME_PART_ORDER.length - 1
+                        ? () => focusInputPart(TIME_PART_ORDER[index + 1])
+                        : undefined
+                    }
+                  />
+                  {index < TIME_PART_ORDER.length - 1 ? (
+                    <span className="time-colon" aria-hidden="true">
+                      :
+                    </span>
+                  ) : null}
+                </span>
+              ))}
+            </div>
+          </label>
+        </section>
+      </div>
 
       <div className="tool-menu" role="tablist" aria-label="Timer tools">
         {(['countdown', 'timer'] as ToolKind[]).map((tool) => (
