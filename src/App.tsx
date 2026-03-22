@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import './App.css'
 import {
   primeAudio,
+  setSoundMuted as configureSoundMuted,
   startRepeatingCompletionTone,
   stopCompletionTone,
 } from './lib/notifications'
@@ -41,6 +42,7 @@ interface StoredPreferences {
   activeTool: ToolKind
   countdownInputParts: TimeParts
   timerInputParts: TimeParts
+  soundMuted: boolean
 }
 
 const DEFAULT_COUNTDOWN_INPUT = '00:25:00'
@@ -60,6 +62,7 @@ function App() {
   const [timerInputParts, setTimerInputParts] = useState<TimeParts>(() =>
     loadStoredPreferences().timerInputParts,
   )
+  const [soundMuted, setSoundMuted] = useState<boolean>(() => loadStoredPreferences().soundMuted)
   const [countdown, setCountdown] = useState<CountdownState>(() => {
     const durationMs = parseHmsInput(DEFAULT_COUNTDOWN_INPUT)
     return {
@@ -121,6 +124,8 @@ function App() {
     activeTool === 'countdown'
       ? countdown.status === 'stopped'
       : timerTool.status === 'stopped'
+  const currentReadoutBlinking =
+    activeTool === 'countdown' ? countdown.status === 'done' : timerTool.targetReachedAt !== null
   const currentInputDisabled = currentIsRunning || currentIsPaused
   const currentToolLabel = TOOL_LABELS[activeTool]
 
@@ -129,8 +134,13 @@ function App() {
       activeTool,
       countdownInputParts,
       timerInputParts,
+      soundMuted,
     })
-  }, [activeTool, countdownInputParts, timerInputParts])
+  }, [activeTool, countdownInputParts, timerInputParts, soundMuted])
+
+  useEffect(() => {
+    configureSoundMuted(soundMuted)
+  }, [soundMuted])
 
   useEffect(() => {
     if (countdown.status !== 'running' || !countdown.endsAt) {
@@ -310,16 +320,12 @@ function App() {
   }, [timerTool.targetReachedAt, timerTool.alertedAt])
 
   useEffect(() => {
-    const stopAlarm = () => {
-      stopCompletionTone()
-    }
-
-    window.addEventListener('pointerdown', stopAlarm)
-    window.addEventListener('keydown', stopAlarm)
+    window.addEventListener('pointerdown', stopCompletionTone)
+    window.addEventListener('keydown', stopCompletionTone)
 
     return () => {
-      window.removeEventListener('pointerdown', stopAlarm)
-      window.removeEventListener('keydown', stopAlarm)
+      window.removeEventListener('pointerdown', stopCompletionTone)
+      window.removeEventListener('keydown', stopCompletionTone)
     }
   }, [])
 
@@ -537,6 +543,18 @@ function App() {
 
   return (
     <main className="app-shell">
+      <button
+        type="button"
+        className={`sound-corner-toggle${!soundMuted ? ' sound-corner-toggle-active' : ''}`}
+        onClick={() => {
+          setSoundMuted((previousValue) => !previousValue)
+        }}
+        aria-pressed={soundMuted}
+      >
+        <span className="sound-corner-toggle-label">Sound</span>
+        <span className="sound-corner-toggle-state">{soundMuted ? 'Off' : 'On'}</span>
+      </button>
+
       <div className="app-center">
         <header className="topbar">
           <h1>Chronos</h1>
@@ -546,14 +564,18 @@ function App() {
           <span className="hero-kicker">{currentToolLabel}</span>
           {activeTool === 'countdown' ? (
             <div className="hero-readout-shell">
-              <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
+              <div className={`hero-readout${currentReadoutBlinking ? ' hero-readout-expired' : ''}`}>
+                {formatDuration(currentDisplayMs)}
+              </div>
               <OverrunReadout
                 value={countdown.overrunMs}
                 active={countdown.status === 'done'}
               />
             </div>
           ) : (
-            <div className="hero-readout">{formatDuration(currentDisplayMs)}</div>
+            <div className={`hero-readout${currentReadoutBlinking ? ' hero-readout-expired' : ''}`}>
+              {formatDuration(currentDisplayMs)}
+            </div>
           )}
           <div className="hero-meta">{currentStatusCopy}</div>
 
@@ -650,6 +672,7 @@ function loadStoredPreferences(): StoredPreferences {
     activeTool: 'countdown',
     countdownInputParts: splitTimeParts(DEFAULT_COUNTDOWN_INPUT),
     timerInputParts: splitTimeParts(DEFAULT_TIMER_INPUT),
+    soundMuted: false,
   }
 
   if (typeof window === 'undefined') {
@@ -668,6 +691,7 @@ function loadStoredPreferences(): StoredPreferences {
       activeTool: parsed.activeTool === 'timer' ? 'timer' : 'countdown',
       countdownInputParts: parseStoredTimeParts(parsed.countdownInputParts, DEFAULT_COUNTDOWN_INPUT),
       timerInputParts: parseStoredTimeParts(parsed.timerInputParts, DEFAULT_TIMER_INPUT),
+      soundMuted: parsed.soundMuted === true,
     }
   } catch {
     return defaults
@@ -687,11 +711,7 @@ function parseStoredTimeParts(value: unknown, fallback: string): TimeParts {
     return splitTimeParts(fallback)
   }
 
-  return {
-    hours: value.hours,
-    minutes: value.minutes,
-    seconds: value.seconds,
-  }
+  return { ...value }
 }
 
 function isStoredTimeParts(value: unknown): value is TimeParts {
@@ -950,7 +970,7 @@ function OverrunReadout({ value, active }: OverrunReadoutProps) {
     <div
       className={`subtimer-inline${active ? ' subtimer-inline-active' : ''}`}
       aria-hidden={!active}
-      {...(active ? { 'aria-live': 'polite' as const } : {})}
+      aria-live={active ? 'polite' : undefined}
     >
       <span className="subtimer-divider" />
       <div className="subtimer-content">

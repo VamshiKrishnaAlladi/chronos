@@ -3,7 +3,49 @@
   position: relative;
   display: grid;
   place-items: center;
-  padding: clamp(1rem, 3vw, 1.75rem) clamp(1rem, 3vw, 1.5rem);
+  padding: clamp(1.7rem, 5vw, 2.85rem) clamp(1.7rem, 5vw, 2.5rem);
+}
+
+.sound-corner-toggle {
+  position: fixed;
+  top: clamp(1.45rem, 4.2vw, 2.1rem);
+  right: clamp(1.45rem, 4.2vw, 2.1rem);
+  z-index: 10;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.sound-corner-toggle-label {
+  color: var(--text-strong);
+}
+
+.sound-corner-toggle-state {
+  color: #6d7682;
+  font-weight: 700;
+}
+
+.sound-corner-toggle-active .sound-corner-toggle-state {
+  color: var(--accent);
+}
+
+.sound-corner-toggle:focus-visible {
+  outline: none;
+}
+
+.sound-corner-toggle:focus-visible .sound-corner-toggle-label,
+.sound-corner-toggle:focus-visible .sound-corner-toggle-state {
+  color: var(--accent);
 }
 
 .app-center {
@@ -50,6 +92,10 @@
   text-align: center;
 }
 
+.hero-readout-expired {
+  animation: countdown-expiry-blink 1s steps(1, end) infinite;
+}
+
 .hero-readout-shell {
   display: grid;
   justify-items: center;
@@ -66,7 +112,7 @@
 }
 
 .hero-progress {
-  width: min(32rem, calc(100vw - 2rem));
+  width: min(32rem, calc(100vw - 4.75rem));
   max-width: 100%;
   height: 2px;
   background: var(--line);
@@ -235,9 +281,9 @@
 
 .tool-menu {
   position: fixed;
-  left: clamp(0.9rem, 2.8vw, 1.25rem);
-  bottom: clamp(0.9rem, 2.8vw, 1.25rem);
-  max-width: calc(100vw - 2rem);
+  left: clamp(1.45rem, 4.2vw, 2.1rem);
+  bottom: clamp(1.45rem, 4.2vw, 2.1rem);
+  max-width: calc(100vw - 4.75rem);
   z-index: 10;
   display: grid;
   justify-items: start;
@@ -280,9 +326,21 @@ h1 {
   color: var(--text-strong);
 }
 
+@keyframes countdown-expiry-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0.18;
+  }
+}
+
 @media (max-width: 1100px), (max-height: 760px) {
   .app-shell {
-    padding: 0.95rem 1rem;
+    padding: 1.35rem 1.45rem;
   }
 
   .app-center {
@@ -299,7 +357,7 @@ h1 {
 
 @media (max-height: 640px) {
   .app-shell {
-    padding: 0.75rem 1rem 0.85rem;
+    padding: 1.15rem 1.35rem 1.2rem;
   }
 
   .app-center {
@@ -323,7 +381,14 @@ h1 {
   }
 
   .tool-menu {
-    bottom: 0.7rem;
+    bottom: 1.2rem;
     gap: 0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-readout-expired {
+    animation: none;
+    opacity: 0.65;
   }
 }

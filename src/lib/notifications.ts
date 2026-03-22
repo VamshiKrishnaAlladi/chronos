@@ -1,143 +1,94 @@
-type CompletionNotificationTarget = {
-  id: string
-  label: string
-  kind: 'countdown' | 'timer' | 'stopwatch' | 'pomodoro' | 'interval'
-}
+import alarmSoundUrl from '../assets/alarm.mp3'
 
-export type AppNotificationPermission = NotificationPermission | 'unsupported'
-
-let audioContext: AudioContext | null = null
-let repeatTimeoutId: number | null = null
+let completionAudio: HTMLAudioElement | null = null
 let repeatAlarmActive = false
+let soundMuted = false
 
-export function getNotificationPermission(): AppNotificationPermission {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    return 'unsupported'
+function getCompletionAudio(): HTMLAudioElement | null {
+  if (typeof window === 'undefined' || typeof window.Audio === 'undefined') {
+    return null
   }
 
-  return window.Notification.permission
+  if (completionAudio) {
+    return completionAudio
+  }
+
+  completionAudio = new window.Audio(alarmSoundUrl)
+  completionAudio.preload = 'auto'
+  completionAudio.muted = soundMuted
+  return completionAudio
 }
 
-export async function requestNotificationPermission(): Promise<AppNotificationPermission> {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    return 'unsupported'
-  }
+export function setSoundMuted(muted: boolean): void {
+  soundMuted = muted
 
-  return window.Notification.requestPermission()
-}
-
-export async function showCompletionNotification(
-  timer: CompletionNotificationTarget,
-): Promise<boolean> {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    return false
-  }
-
-  if (window.Notification.permission !== 'granted') {
-    return false
-  }
-
-  const title = `Timer finished: ${timer.label}`
-  const body =
-    timer.kind === 'timer'
-      ? 'Your timer reached its alert point while Chronos was open.'
-      : timer.kind === 'stopwatch'
-      ? 'Your stopwatch was stopped or completed.'
-      : 'Your timer completed while Chronos was open.'
-
-  try {
-    if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.getRegistration()
-      if (registration) {
-        await registration.showNotification(title, {
-          body,
-          tag: `chronos-${timer.id}`,
-          badge: '/favicon.svg',
-          icon: '/favicon.svg',
-        })
-        return true
-      }
-    }
-
-    new window.Notification(title, { body, tag: `chronos-${timer.id}` })
-    return true
-  } catch {
-    return false
-  }
-}
-
-export async function primeAudio(): Promise<void> {
-  if (typeof window === 'undefined' || !('AudioContext' in window)) {
+  if (!completionAudio) {
     return
   }
 
-  audioContext ??= new window.AudioContext()
+  completionAudio.muted = muted
 
-  if (audioContext.state === 'suspended') {
-    await audioContext.resume()
+  if (!muted) {
+    return
   }
+
+  repeatAlarmActive = false
+  completionAudio.pause()
+  completionAudio.currentTime = 0
+  completionAudio.loop = false
 }
 
-export async function playCompletionTone(): Promise<boolean> {
-  if (!audioContext) {
-    return false
+export async function primeAudio(): Promise<void> {
+  const audio = getCompletionAudio()
+  if (!audio) {
+    return
   }
 
-  try {
-    if (audioContext.state === 'suspended') {
-      await audioContext.resume()
-    }
+  audio.load()
 
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
-    const startAt = audioContext.currentTime
-    oscillator.type = 'triangle'
-    oscillator.frequency.setValueAtTime(880, startAt)
-    oscillator.frequency.setValueAtTime(1174, startAt + 0.24)
-    gainNode.gain.setValueAtTime(0.0001, startAt)
-    gainNode.gain.exponentialRampToValueAtTime(0.08, startAt + 0.02)
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.18)
-    gainNode.gain.setValueAtTime(0.0001, startAt + 0.22)
-    gainNode.gain.exponentialRampToValueAtTime(0.08, startAt + 0.26)
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.48)
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
-    oscillator.start(startAt)
-    oscillator.stop(startAt + 0.52)
-    return true
+  try {
+    audio.muted = true
+    audio.loop = false
+    await audio.play()
+    audio.pause()
   } catch {
-    return false
+    return
+  } finally {
+    audio.currentTime = 0
+    audio.muted = false
   }
 }
 
 export async function startRepeatingCompletionTone(): Promise<void> {
-  if (repeatAlarmActive) {
+  if (repeatAlarmActive || soundMuted) {
+    return
+  }
+
+  const audio = getCompletionAudio()
+  if (!audio) {
     return
   }
 
   repeatAlarmActive = true
 
-  const loop = async () => {
-    const didPlay = await playCompletionTone()
-    if (!didPlay || !repeatAlarmActive) {
-      repeatAlarmActive = false
-      repeatTimeoutId = null
-      return
-    }
-
-    repeatTimeoutId = window.setTimeout(() => {
-      void loop()
-    }, 1100)
+  try {
+    audio.pause()
+    audio.loop = true
+    audio.currentTime = 0
+    await audio.play()
+  } catch {
+    repeatAlarmActive = false
   }
-
-  await loop()
 }
 
 export function stopCompletionTone(): void {
   repeatAlarmActive = false
 
-  if (repeatTimeoutId !== null) {
-    window.clearTimeout(repeatTimeoutId)
-    repeatTimeoutId = null
+  if (!completionAudio) {
+    return
   }
+
+  completionAudio.pause()
+  completionAudio.currentTime = 0
+  completionAudio.loop = false
 }
