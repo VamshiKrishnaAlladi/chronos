@@ -176,6 +176,43 @@
   visibility: visible;
 }
 
+.pomo-input-strip {
+  display: flex;
+  gap: clamp(1rem, 3vw, 1.8rem);
+  justify-content: center;
+  align-items: start;
+  flex-wrap: wrap;
+}
+
+.pomo-sessions-input {
+  width: 2.4ch;
+}
+
+.pomo-sessions {
+  display: flex;
+  gap: clamp(0.4rem, 1.1vw, 0.6rem);
+  justify-content: center;
+  align-items: center;
+  min-height: clamp(3.4rem, 7vmin, 4.8rem);
+}
+
+.pomo-dot {
+  width: clamp(0.5rem, 1.3vmin, 0.65rem);
+  height: clamp(0.5rem, 1.3vmin, 0.65rem);
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  background: transparent;
+}
+
+.pomo-dot-done {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pomo-dot-current {
+  border-color: var(--accent);
+}
+
 .input-strip {
   display: flex;
   justify-content: center;
