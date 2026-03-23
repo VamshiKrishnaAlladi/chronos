@@ -80,6 +80,7 @@ const STORED_PREFS = loadStoredPreferences()
 
 function App() {
   const [activeTool, setActiveTool] = useState<ToolKind>(STORED_PREFS.activeTool)
+  const [pendingToolSwitch, setPendingToolSwitch] = useState<ToolKind | null>(null)
   const [countdownInputParts, setCountdownInputParts] = useState<TimeParts>(STORED_PREFS.countdownInputParts)
   const [timerInputParts, setTimerInputParts] = useState<TimeParts>(STORED_PREFS.timerInputParts)
   const [soundMuted, setSoundMuted] = useState<boolean>(STORED_PREFS.soundMuted)
@@ -536,6 +537,17 @@ function App() {
     }
 
     await handlePomodoroResume()
+  }
+
+  function confirmToolSwitch() {
+    if (!pendingToolSwitch) return
+    handleStop()
+    setActiveTool(pendingToolSwitch)
+    setPendingToolSwitch(null)
+  }
+
+  function cancelToolSwitch() {
+    setPendingToolSwitch(null)
   }
 
   async function handlePrimaryAction() {
@@ -996,6 +1008,16 @@ function App() {
             type="button"
             className={`tool-menu-item${tool === activeTool ? ' tool-menu-item-active' : ''}`}
             onClick={() => {
+              if (tool === activeTool) return
+              if (currentReadoutBlinking) {
+                handleStop()
+                setActiveTool(tool)
+                return
+              }
+              if (currentIsRunning || currentIsPaused) {
+                setPendingToolSwitch(tool)
+                return
+              }
               setActiveTool(tool)
             }}
             role="tab"
@@ -1005,6 +1027,15 @@ function App() {
           </button>
         ))}
       </div>
+
+      {pendingToolSwitch && (
+        <ConfirmDialog
+          message={`The active ${currentToolLabel.toLowerCase()} will be stopped.`}
+          confirmLabel="Switch"
+          onConfirm={confirmToolSwitch}
+          onCancel={cancelToolSwitch}
+        />
+      )}
     </main>
   )
 }
@@ -1395,6 +1426,43 @@ function TimePartsInput({
         ))}
       </div>
     </label>
+  )
+}
+
+interface ConfirmDialogProps {
+  message: string
+  confirmLabel: string
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function ConfirmDialog({ message, confirmLabel, onConfirm, onCancel }: ConfirmDialogProps) {
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    cancelRef.current?.focus()
+  }, [])
+
+  return (
+    <div className="confirm-backdrop" onClick={onCancel} role="presentation">
+      <div
+        className="confirm-card"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label="Confirm action"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="confirm-message">{message}</p>
+        <div className="confirm-actions">
+          <button ref={cancelRef} type="button" className="confirm-button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="confirm-button confirm-button-primary" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

@@ -363,6 +363,60 @@ h1 {
   color: var(--text-strong);
 }
 
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 9, 13, 0.6);
+  backdrop-filter: blur(3px);
+}
+
+.confirm-card {
+  display: grid;
+  gap: clamp(1.1rem, 2.5vw, 1.5rem);
+  justify-items: center;
+  text-align: center;
+  padding: clamp(1.5rem, 4vw, 2.2rem) clamp(2rem, 5vw, 3rem);
+  border: 1px solid rgba(245, 247, 251, 0.08);
+  background: #0e1219;
+}
+
+.confirm-message {
+  color: var(--text);
+  font-size: clamp(0.82rem, 1.6vw, 0.95rem);
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.confirm-button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: clamp(0.72rem, 1.3vw, 0.84rem);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 0.4rem 0;
+  cursor: pointer;
+}
+
+.confirm-button:focus-visible {
+  outline: none;
+  color: var(--accent);
+}
+
+.confirm-button-primary {
+  color: var(--accent);
+}
+
 @keyframes countdown-expiry-blink {
   0%,
   49% {
