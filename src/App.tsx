@@ -204,7 +204,6 @@ function App() {
   const currentIsRunning = currentStatus === 'running'
   const currentIsPaused = currentStatus === 'paused'
   const currentIsIdle = currentStatus === 'idle'
-  const currentShowsRestart = currentStatus === 'stopped'
   const currentReadoutBlinking =
     activeTool === 'timer' ? timerTool.targetReachedAt !== null : currentStatus === 'done'
   const currentInputDisabled = currentIsRunning || currentIsPaused
@@ -524,22 +523,33 @@ function App() {
     handlePomodoroStop()
   }
 
+  async function handleResume() {
+    if (activeTool === 'countdown') {
+      await handleCountdownResume()
+      return
+    }
+
+    if (activeTool === 'timer') {
+      await handleTimerResume()
+      return
+    }
+
+    await handlePomodoroResume()
+  }
+
   async function handlePrimaryAction() {
+    await handleStart()
+  }
+
+  async function handleSecondaryAction() {
     if (currentIsRunning) {
       handlePause()
       return
     }
 
-    await handleStart()
-  }
-
-  async function handleSecondaryAction() {
-    if (currentShowsRestart) {
-      await handleStart()
-      return
+    if (currentIsPaused) {
+      await handleResume()
     }
-
-    handleStop()
   }
 
   async function handleCountdownStart() {
@@ -556,21 +566,14 @@ function App() {
     await primeAudio()
     const actionedAt = Date.now()
 
-    setCountdown((previousTimer) => {
-      const durationMs =
-        previousTimer.status === 'paused' ? previousTimer.durationMs : nextDurationMs
-      const remainingMs =
-        previousTimer.status === 'paused' ? previousTimer.remainingMs : nextDurationMs
-
-      return {
-        durationMs,
-        remainingMs,
-        overrunMs: 0,
-        endsAt: actionedAt + remainingMs,
-        status: 'running',
-        completedAt: null,
-        alertedAt: null,
-      }
+    setCountdown({
+      durationMs: nextDurationMs,
+      remainingMs: nextDurationMs,
+      overrunMs: 0,
+      endsAt: actionedAt + nextDurationMs,
+      status: 'running',
+      completedAt: null,
+      alertedAt: null,
     })
   }
 
@@ -588,23 +591,13 @@ function App() {
     await primeAudio()
     const actionedAt = Date.now()
 
-    setTimerTool((previousTimer) => {
-      if (previousTimer.status === 'paused') {
-        return {
-          ...previousTimer,
-          startedAt: actionedAt - previousTimer.mainElapsedMs,
-          status: 'running',
-        }
-      }
-
-      return {
-        targetMs: nextTargetMs,
-        mainElapsedMs: 0,
-        startedAt: actionedAt,
-        status: 'running',
-        targetReachedAt: null,
-        alertedAt: null,
-      }
+    setTimerTool({
+      targetMs: nextTargetMs,
+      mainElapsedMs: 0,
+      startedAt: actionedAt,
+      status: 'running',
+      targetReachedAt: null,
+      alertedAt: null,
     })
   }
 
@@ -643,6 +636,36 @@ function App() {
         mainElapsedMs,
         startedAt: null,
         status: 'paused',
+      }
+    })
+  }
+
+  async function handleCountdownResume() {
+    stopCompletionTone()
+    await primeAudio()
+    const actionedAt = Date.now()
+
+    setCountdown((prev) => {
+      if (prev.status !== 'paused') return prev
+      return {
+        ...prev,
+        endsAt: actionedAt + prev.remainingMs,
+        status: 'running',
+      }
+    })
+  }
+
+  async function handleTimerResume() {
+    stopCompletionTone()
+    await primeAudio()
+    const actionedAt = Date.now()
+
+    setTimerTool((prev) => {
+      if (prev.status !== 'paused') return prev
+      return {
+        ...prev,
+        startedAt: actionedAt - prev.mainElapsedMs,
+        status: 'running',
       }
     })
   }
@@ -699,14 +722,6 @@ function App() {
     const actionedAt = Date.now()
 
     setPomodoro((prev) => {
-      if (prev.status === 'paused') {
-        return {
-          ...prev,
-          endsAt: actionedAt + prev.remainingMs,
-          status: 'running',
-        }
-      }
-
       if (
         prev.status === 'done' &&
         !(prev.currentPhase === 'work' && prev.currentSession >= prev.sessionsPerCycle)
@@ -755,6 +770,21 @@ function App() {
         remainingMs: Math.ceil(Math.max(prev.endsAt - actionedAt, 0) / 1000) * 1000,
         endsAt: null,
         status: 'paused',
+      }
+    })
+  }
+
+  async function handlePomodoroResume() {
+    stopCompletionTone()
+    await primeAudio()
+    const actionedAt = Date.now()
+
+    setPomodoro((prev) => {
+      if (prev.status !== 'paused') return prev
+      return {
+        ...prev,
+        endsAt: actionedAt + prev.remainingMs,
+        status: 'running',
       }
     })
   }
@@ -858,19 +888,25 @@ function App() {
 
           <div className="hero-controls">
             <IconButton
-              label={currentIsRunning ? `Pause ${activeTool}` : `Start ${activeTool}`}
+              label={currentIsIdle ? `Start ${activeTool}` : `Restart ${activeTool}`}
               onClick={() => void handlePrimaryAction()}
-              active={currentIsRunning}
-              disabled={!currentIsRunning && currentInputInvalid}
+              disabled={currentInputInvalid}
             >
-              {currentIsRunning ? <PauseIcon /> : <PlayIcon />}
+              {currentIsIdle ? <PlayIcon /> : <RestartIcon />}
             </IconButton>
             <IconButton
-              label={currentShowsRestart ? `Restart ${activeTool}` : `Stop ${activeTool}`}
+              label={currentIsPaused ? `Resume ${activeTool}` : `Pause ${activeTool}`}
               onClick={() => void handleSecondaryAction()}
-              disabled={!currentShowsRestart && currentIsIdle}
+              disabled={!currentIsRunning && !currentIsPaused}
             >
-              {currentShowsRestart ? <RestartIcon /> : <StopIcon />}
+              {currentIsPaused ? <ResumeIcon /> : <PauseIcon />}
+            </IconButton>
+            <IconButton
+              label={`Stop ${activeTool}`}
+              onClick={handleStop}
+              disabled={currentIsIdle}
+            >
+              <StopIcon />
             </IconButton>
           </div>
         </section>
@@ -1396,6 +1432,15 @@ function PauseIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M7 6h3v12H7zm7 0h3v12h-3z" fill="currentColor" />
+    </svg>
+  )
+}
+
+function ResumeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 6h3v12H7z" fill="currentColor" />
+      <path d="M13 6.5v11l8-5.5-8-5.5Z" fill="currentColor" />
     </svg>
   )
 }
