@@ -204,6 +204,7 @@ function App() {
   const currentIsRunning = currentStatus === 'running'
   const currentIsPaused = currentStatus === 'paused'
   const currentIsIdle = currentStatus === 'idle'
+  const currentShowsStart = currentIsIdle || currentStatus === 'stopped'
   const currentReadoutBlinking =
     activeTool === 'timer' ? timerTool.targetReachedAt !== null : currentStatus === 'done'
   const currentInputDisabled = currentIsRunning || currentIsPaused
@@ -888,11 +889,11 @@ function App() {
 
           <div className="hero-controls">
             <IconButton
-              label={currentIsIdle ? `Start ${activeTool}` : `Restart ${activeTool}`}
+              label={currentShowsStart ? `Start ${activeTool}` : `Restart ${activeTool}`}
               onClick={() => void handlePrimaryAction()}
               disabled={currentInputInvalid}
             >
-              {currentIsIdle ? <PlayIcon /> : <RestartIcon />}
+              {currentShowsStart ? <PlayIcon /> : <RestartIcon />}
             </IconButton>
             <IconButton
               label={currentIsPaused ? `Resume ${activeTool}` : `Pause ${activeTool}`}
@@ -904,7 +905,7 @@ function App() {
             <IconButton
               label={`Stop ${activeTool}`}
               onClick={handleStop}
-              disabled={currentIsIdle}
+              disabled={currentIsIdle || currentStatus === 'stopped'}
             >
               <StopIcon />
             </IconButton>
