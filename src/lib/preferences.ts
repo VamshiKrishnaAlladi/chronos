@@ -1,4 +1,4 @@
-import type { StoredPreferences, ToolKind } from '../types'
+import type { AppView, StoredPreferences, ToolKind } from '../types'
 import { splitTimeParts, parseStoredTimeParts } from './time'
 
 const PREFERENCES_STORAGE_KEY = 'chronos-preferences-v1'
@@ -11,6 +11,7 @@ export const DEFAULT_POMODORO_SESSIONS = '4'
 
 const DEFAULTS: StoredPreferences = {
   activeTool: 'countdown',
+  appView: 'focus',
   countdownInputParts: splitTimeParts(DEFAULT_COUNTDOWN_INPUT),
   timerInputParts: splitTimeParts(DEFAULT_TIMER_INPUT),
   pomodoroInputParts: splitTimeParts(DEFAULT_POMODORO_INPUT),
@@ -39,6 +40,8 @@ export function loadStoredPreferences(): StoredPreferences {
           ? 'pomodoro'
           : 'countdown'
 
+    const appView: AppView = parsed.appView === 'dashboard' ? 'dashboard' : 'focus'
+
     const pomoSessionsInput =
       typeof parsed.pomoSessionsInput === 'string' && /^\d{1,2}$/.test(parsed.pomoSessionsInput)
         ? parsed.pomoSessionsInput
@@ -46,6 +49,7 @@ export function loadStoredPreferences(): StoredPreferences {
 
     return {
       activeTool,
+      appView,
       countdownInputParts: parseStoredTimeParts(parsed.countdownInputParts, DEFAULT_COUNTDOWN_INPUT),
       timerInputParts: parseStoredTimeParts(parsed.timerInputParts, DEFAULT_TIMER_INPUT),
       pomodoroInputParts: parseStoredTimeParts(parsed.pomodoroInputParts, DEFAULT_POMODORO_INPUT),
@@ -73,4 +77,13 @@ export function saveStoredPreferences(preferences: StoredPreferences): void {
     window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences))
     saveTimer = null
   }, 400)
+}
+
+export function saveStoredPreferencesSync(preferences: StoredPreferences): void {
+  if (typeof window === 'undefined') return
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences))
 }

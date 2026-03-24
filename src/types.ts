@@ -1,5 +1,18 @@
 export type ToolKind = 'countdown' | 'timer' | 'pomodoro'
 
+export type AppView = 'focus' | 'dashboard'
+
+export interface DashboardTileConfig {
+  id: string
+  kind: ToolKind
+  name: string
+  inputParts: TimeParts
+  breakInputParts: TimeParts
+  sessionsInput: string
+}
+
+export const MAX_DASHBOARD_TILES = 4
+
 // Unified status — 'stopped' is removed; handleStop transitions to 'idle'.
 export type ToolStatus = 'idle' | 'running' | 'paused' | 'done'
 
@@ -47,6 +60,7 @@ export interface PomodoroState {
 
 export interface StoredPreferences {
   activeTool: ToolKind
+  appView: AppView
   countdownInputParts: TimeParts
   timerInputParts: TimeParts
   pomodoroInputParts: TimeParts
