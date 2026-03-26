@@ -200,7 +200,7 @@ function TileCardLayout({
                 onClick={tool.start}
                 disabled={tool.inputInvalid}
               >
-                Restart
+                {tool.restartLabel}
               </button>
               <button
                 type="button"

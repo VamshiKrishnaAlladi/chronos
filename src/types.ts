@@ -81,6 +81,7 @@ export interface ToolFace {
   readoutBlinking: boolean
   inputInvalid: boolean
   inputDisabled: boolean
+  restartLabel: string
   start: () => void
   pause: () => void
   resume: () => void

@@ -184,6 +184,14 @@ export function usePomodoro(
     state.status,
   )
 
+  const restartLabel = (() => {
+    if (state.status !== 'done') return 'Restart'
+    if (state.currentPhase === 'work' && state.currentSession >= state.sessionsPerCycle) {
+      return 'New Cycle'
+    }
+    return state.currentPhase === 'work' ? 'Start Break' : 'Start Work'
+  })()
+
   // --- Tick effect ---
 
   useTickInterval(
@@ -278,6 +286,7 @@ export function usePomodoro(
     const actionedAt = Date.now()
 
     setState((prev) => {
+      // Mid-cycle done: advance to next phase
       if (
         prev.status === 'done' &&
         !(prev.currentPhase === 'work' && prev.currentSession >= prev.sessionsPerCycle)
@@ -298,6 +307,22 @@ export function usePomodoro(
         }
       }
 
+      // Running/paused: restart current phase only
+      if (prev.status === 'running' || prev.status === 'paused') {
+        const phaseDurationMs =
+          prev.currentPhase === 'work' ? prev.workDurationMs : prev.breakMs
+
+        return {
+          ...prev,
+          remainingMs: phaseDurationMs,
+          endsAt: actionedAt + phaseDurationMs,
+          status: 'running' as const,
+          completedAt: null,
+          alertedAt: null,
+        }
+      }
+
+      // Idle or cycle-complete done: fresh start from work session 1
       return {
         workDurationMs: nextWorkMs,
         breakMs: nextBreakMs,
@@ -373,6 +398,7 @@ export function usePomodoro(
     readoutBlinking,
     inputInvalid,
     inputDisabled,
+    restartLabel,
     start: () => void start(),
     pause,
     resume: () => void resume(),

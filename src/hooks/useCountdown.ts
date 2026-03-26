@@ -215,6 +215,7 @@ export function useCountdown(initialInputParts: TimeParts): UseCountdownReturn {
     readoutBlinking,
     inputInvalid,
     inputDisabled,
+    restartLabel: 'Restart',
     inputParts,
     inputRefs,
     setInputPart,

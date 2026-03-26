@@ -195,6 +195,7 @@ export function useTimer(initialInputParts: TimeParts): UseTimerReturn {
     readoutBlinking,
     inputInvalid,
     inputDisabled,
+    restartLabel: 'Restart',
     start,
     pause,
     resume,
