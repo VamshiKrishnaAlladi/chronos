@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, type RefObject } from 'react'
 import type { DashboardTileConfig, ToolKind, ToolStatus } from '../types'
 import { MAX_DASHBOARD_TILES, TOOL_LABELS } from '../types'
 import { stopCompletionTone } from '../lib/notifications'
@@ -118,9 +118,10 @@ interface DashboardViewProps {
   pendingLeave: boolean
   onLeaveConfirmed: () => void
   onLeaveCancelled: () => void
+  activeTimersRef: RefObject<number[]>
 }
 
-export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled }: DashboardViewProps) {
+export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled, activeTimersRef }: DashboardViewProps) {
   const [tiles, setTiles] = useState<DashboardTileConfig[]>(STORED_DASHBOARD.tiles)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
@@ -129,6 +130,7 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
 
   const tileInputsRef = useRef<Record<string, Partial<DashboardTileConfig>>>({})
   const tileStatusesRef = useRef<Record<string, ToolStatus>>({})
+  const tileRemainingMsRef = useRef<Record<string, number>>({})
 
   const onLeaveConfirmedRef = useRef(onLeaveConfirmed)
   onLeaveConfirmedRef.current = onLeaveConfirmed
@@ -191,12 +193,31 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
     onLeaveCancelled()
   }
 
+  // --- Active timers bookkeeping ---
+
+  const recomputeActiveTimers = useCallback(() => {
+    const active: number[] = []
+    for (const tile of tilesRef.current) {
+      const status = tileStatusesRef.current[tile.id]
+      const ms = tileRemainingMsRef.current[tile.id] ?? 0
+      if ((status === 'running' || status === 'paused') && ms > 0) {
+        active.push(ms)
+      }
+    }
+    activeTimersRef.current = active
+  }, [activeTimersRef])
+
+  useEffect(() => {
+    return () => { activeTimersRef.current = [] }
+  }, [activeTimersRef])
+
   // --- Tile callbacks (stable via useCallback + refs) ---
 
   const handleConfigChange = useCallback((tileId: string, updates: Partial<DashboardTileConfig>) => {
     if (updates.kind) {
       delete tileInputsRef.current[tileId]
       delete tileStatusesRef.current[tileId]
+      delete tileRemainingMsRef.current[tileId]
     }
     setTiles(prev =>
       prev.map(tile => {
@@ -208,13 +229,16 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
         return { ...tile, ...updates }
       }),
     )
-  }, [])
+    recomputeActiveTimers()
+  }, [recomputeActiveTimers])
 
   const handleRemove = useCallback((tileId: string) => {
     delete tileInputsRef.current[tileId]
     delete tileStatusesRef.current[tileId]
+    delete tileRemainingMsRef.current[tileId]
     setTiles(prev => prev.filter(t => t.id !== tileId))
-  }, [])
+    recomputeActiveTimers()
+  }, [recomputeActiveTimers])
 
   const handleInputsChange = useCallback(
     (tileId: string, inputs: Partial<DashboardTileConfig>) => {
@@ -226,7 +250,13 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
 
   const handleStatusChange = useCallback((tileId: string, status: ToolStatus) => {
     tileStatusesRef.current[tileId] = status
-  }, [])
+    recomputeActiveTimers()
+  }, [recomputeActiveTimers])
+
+  const handleRemainingMsChange = useCallback((tileId: string, ms: number) => {
+    tileRemainingMsRef.current[tileId] = ms
+    recomputeActiveTimers()
+  }, [recomputeActiveTimers])
 
   const handleAddTile = useCallback((kind: ToolKind) => {
     setTiles(prev => {
@@ -251,6 +281,7 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
               onRemove={handleRemove}
               onInputsChange={handleInputsChange}
               onStatusChange={handleStatusChange}
+              onRemainingMsChange={handleRemainingMsChange}
             />
           ))}
         </div>

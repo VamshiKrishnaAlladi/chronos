@@ -34,6 +34,8 @@ function App() {
   const pendingViewSwitchRef = useRef(pendingViewSwitch)
   pendingViewSwitchRef.current = pendingViewSwitch
 
+  const dashboardTimersRef = useRef<number[]>([])
+
   const countdown = useCountdown(STORED_PREFS.countdownInputParts)
   const timer = useTimer(STORED_PREFS.timerInputParts)
   const pomo = usePomodoro(
@@ -104,6 +106,50 @@ function App() {
       window.removeEventListener('keydown', stopCompletionTone)
     }
   }, [])
+
+  // --- Page title ---
+
+  useEffect(() => {
+    function updateTitle() {
+      const values: number[] = []
+
+      if (appView === 'focus') {
+        if (tool.status === 'running' || tool.status === 'paused') {
+          let remaining: number
+          if (activeTool === 'countdown') {
+            remaining = countdown.state.remainingMs
+          } else if (activeTool === 'timer') {
+            remaining = Math.max(timer.state.targetMs - timer.state.mainElapsedMs, 0)
+          } else {
+            remaining = pomo.state.remainingMs
+          }
+          if (remaining > 0) values.push(remaining)
+        }
+      } else {
+        values.push(...dashboardTimersRef.current)
+      }
+
+      if (values.length === 0) {
+        document.title = 'VKA | Chronos'
+        return
+      }
+
+      values.sort((a, b) => a - b)
+      document.title = values.map(formatDuration).join(' | ')
+    }
+
+    updateTitle()
+
+    if (appView === 'dashboard') {
+      const id = setInterval(updateTitle, 500)
+      return () => clearInterval(id)
+    }
+  }, [
+    appView, activeTool, tool.status,
+    countdown.state.remainingMs,
+    timer.state.targetMs, timer.state.mainElapsedMs,
+    pomo.state.remainingMs,
+  ])
 
   // --- View switching ---
 
@@ -356,6 +402,7 @@ function App() {
             pendingLeave={pendingViewSwitch !== null && appView === 'dashboard'}
             onLeaveConfirmed={handleDashboardLeaveConfirmed}
             onLeaveCancelled={handleDashboardLeaveCancelled}
+            activeTimersRef={dashboardTimersRef}
           />
         )}
       </div>

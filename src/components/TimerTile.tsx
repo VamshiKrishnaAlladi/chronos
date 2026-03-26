@@ -26,6 +26,7 @@ export interface TimerTileProps {
   onRemove: (tileId: string) => void
   onInputsChange: (tileId: string, inputs: Partial<DashboardTileConfig>) => void
   onStatusChange: (tileId: string, status: ToolStatus) => void
+  onRemainingMsChange: (tileId: string, ms: number) => void
 }
 
 export function TimerTile(props: TimerTileProps) {
@@ -203,6 +204,7 @@ function CountdownTileContent({
   onRemove,
   onInputsChange,
   onStatusChange,
+  onRemainingMsChange,
 }: TimerTileProps) {
   const cd = useCountdown(config.inputParts)
 
@@ -213,6 +215,10 @@ function CountdownTileContent({
   useEffect(() => {
     onStatusChange(config.id, cd.status)
   }, [cd.status, config.id, onStatusChange])
+
+  useEffect(() => {
+    onRemainingMsChange(config.id, cd.state.remainingMs)
+  }, [cd.state.remainingMs, config.id, onRemainingMsChange])
 
   return (
     <TileCardLayout
@@ -251,6 +257,7 @@ function TimerTileContent({
   onRemove,
   onInputsChange,
   onStatusChange,
+  onRemainingMsChange,
 }: TimerTileProps) {
   const tmr = useTimer(config.inputParts)
 
@@ -261,6 +268,11 @@ function TimerTileContent({
   useEffect(() => {
     onStatusChange(config.id, tmr.status)
   }, [tmr.status, config.id, onStatusChange])
+
+  const timerRemainingMs = Math.max(tmr.state.targetMs - tmr.state.mainElapsedMs, 0)
+  useEffect(() => {
+    onRemainingMsChange(config.id, timerRemainingMs)
+  }, [timerRemainingMs, config.id, onRemainingMsChange])
 
   return (
     <TileCardLayout
@@ -296,6 +308,7 @@ function PomodoroTileContent({
   onRemove,
   onInputsChange,
   onStatusChange,
+  onRemainingMsChange,
 }: TimerTileProps) {
   const pomo = usePomodoro(config.inputParts, config.breakInputParts, config.sessionsInput)
 
@@ -310,6 +323,10 @@ function PomodoroTileContent({
   useEffect(() => {
     onStatusChange(config.id, pomo.status)
   }, [pomo.status, config.id, onStatusChange])
+
+  useEffect(() => {
+    onRemainingMsChange(config.id, pomo.state.remainingMs)
+  }, [pomo.state.remainingMs, config.id, onRemainingMsChange])
 
   const onSessionsChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
