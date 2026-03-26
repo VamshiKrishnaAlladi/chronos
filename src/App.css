@@ -92,21 +92,17 @@
   text-transform: uppercase;
 }
 
-.hero-readout {
-  display: inline-block;
-  min-width: 8ch;
-  font-family: var(--font-display);
-  font-size: clamp(3.8rem, 13vmin, 9rem);
-  font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: 'tnum' 1, 'lnum' 1;
-  line-height: 0.9;
-  letter-spacing: -0.08em;
-  color: var(--text-strong);
-  text-align: center;
+.hero .tile-readout-overlay svg {
+  width: clamp(3.5rem, 10vmin, 6rem);
+  height: clamp(3.5rem, 10vmin, 6rem);
 }
 
-.hero-readout-expired {
-  animation: countdown-expiry-blink 1s steps(1, end) infinite;
+.hero .pomo-sessions {
+  min-height: 0;
+}
+
+.hero-pomo-idle .tile-pomo-label {
+  font-size: clamp(0.82rem, 1.8vw, 1.05rem);
 }
 
 .hero-readout-shell {
@@ -189,18 +185,6 @@
   visibility: visible;
 }
 
-.pomo-input-strip {
-  display: flex;
-  gap: clamp(1rem, 3vw, 1.8rem);
-  justify-content: center;
-  align-items: start;
-  flex-wrap: wrap;
-}
-
-.pomo-sessions-input {
-  width: 2.4ch;
-}
-
 .pomo-sessions {
   display: flex;
   gap: clamp(0.4rem, 1.1vw, 0.6rem);
@@ -224,13 +208,6 @@
 
 .pomo-dot-current {
   border-color: var(--accent);
-}
-
-.input-strip {
-  display: flex;
-  justify-content: center;
-  width: max-content;
-  max-width: 100%;
 }
 
 .inline-input {
@@ -675,8 +652,6 @@ h1 {
 
 .tile-start-button {
   appearance: none;
-  width: 100%;
-  max-width: 16rem;
   padding: clamp(0.6rem, 1.5vmin, 0.85rem) clamp(1.5rem, 4vw, 2.5rem);
   border: 1px solid var(--accent);
   border-radius: 999px;
@@ -686,6 +661,7 @@ h1 {
   font-size: clamp(0.72rem, 1.4vw, 0.88rem);
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -810,6 +786,22 @@ h1 {
   font-size: clamp(2rem, 6vmin, 3.5rem);
 }
 
+.hero-readout-input .time-input-group,
+.hero-readout-input .time-segment,
+.hero-readout-input .time-colon {
+  font-size: clamp(5rem, 18vmin, 12rem);
+}
+
+.hero-readout-input .time-segment,
+.hero-readout-input .time-colon {
+  letter-spacing: -0.08em;
+}
+
+.hero-readout-input.tile-readout-input-sm .time-segment,
+.hero-readout-input.tile-readout-input-sm .time-colon {
+  font-size: clamp(2.5rem, 9vmin, 6rem);
+}
+
 .tile-readout-tappable {
   cursor: pointer;
   user-select: none;
@@ -855,6 +847,7 @@ h1 {
   font-size: clamp(0.72rem, 1.4vw, 0.88rem);
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -1195,8 +1188,6 @@ h1 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
-  .hero-readout-expired,
   .tile-readout-expired {
     animation: none;
     opacity: 0.65;

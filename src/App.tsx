@@ -2,22 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import type { AppView, ToolKind, ToolFace } from './types'
 import { TOOL_LABELS } from './types'
-import { formatDuration } from './lib/time'
-import { loadStoredPreferences, saveStoredPreferences, saveStoredPreferencesSync, DEFAULT_POMODORO_SESSIONS } from './lib/preferences'
+import { formatDuration, msToTimeParts } from './lib/time'
+import { loadStoredPreferences, saveStoredPreferences, saveStoredPreferencesSync } from './lib/preferences'
 import { setSoundMuted as configureSoundMuted, stopCompletionTone } from './lib/notifications'
 import { useCountdown } from './hooks/useCountdown'
 import { useTimer } from './hooks/useTimer'
 import { usePomodoro } from './hooks/usePomodoro'
 import {
   ConfirmDialog,
-  IconButton,
   OverrunReadout,
   PauseIcon,
   PlayIcon,
   PomodoroSessionDots,
-  RestartIcon,
-  ResumeIcon,
-  StopIcon,
   TimePartsInput,
 } from './components'
 import { DashboardView } from './components/DashboardView'
@@ -50,7 +46,34 @@ function App() {
   const isIdle = tool.status === 'idle'
   const isRunning = tool.status === 'running'
   const isPaused = tool.status === 'paused'
+  const isTappable = isRunning || isPaused
   const toolLabel = TOOL_LABELS[activeTool]
+
+  function handleReadoutTap() {
+    if (isRunning) tool.pause()
+    else if (isPaused) tool.resume()
+  }
+
+  function handleReadoutKey(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleReadoutTap()
+    }
+  }
+
+  function incrementSessions() {
+    const n = Number(pomo.sessionsInput)
+    if (Number.isInteger(n) && n < 99) {
+      pomo.setSessionsInput(String(n + 1))
+    }
+  }
+
+  function decrementSessions() {
+    const n = Number(pomo.sessionsInput)
+    if (Number.isInteger(n) && n > 1) {
+      pomo.setSessionsInput(String(n - 1))
+    }
+  }
 
   // --- Preferences persistence ---
 
@@ -261,142 +284,199 @@ function App() {
         )}
 
         {appView === 'focus' ? (
-          <>
-            <section className="hero">
-              <span className="hero-kicker">{toolLabel}</span>
+          <section className="hero">
+            <span className="hero-kicker">{toolLabel}</span>
 
-              {activeTool === 'countdown' ? (
-                <div className="hero-readout-shell">
-                  <div className={`hero-readout${tool.readoutBlinking ? ' hero-readout-expired' : ''}`}>
-                    {formatDuration(tool.displayMs)}
+            {activeTool === 'countdown' ? (
+              <div className="hero-readout-shell">
+                <div
+                  className={`tile-readout-wrap${isTappable ? ' tile-readout-tappable' : ''}${tool.readoutBlinking ? ' tile-readout-expired' : ''}`}
+                  {...(isTappable ? {
+                    onClick: handleReadoutTap,
+                    onKeyDown: handleReadoutKey,
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-label': isRunning ? 'Pause' : 'Resume',
+                  } : {})}
+                >
+                  <div className="tile-readout-input hero-readout-input">
+                    <TimePartsInput
+                      refs={countdown.inputRefs}
+                      label="HH:MM:SS"
+                      parts={isIdle ? countdown.inputParts : msToTimeParts(countdown.displayMs)}
+                      disabled={!isIdle}
+                      invalid={isIdle && countdown.inputInvalid}
+                      onPartChange={countdown.setInputPart}
+                      onPartBlur={countdown.padInputPart}
+                      onFocus={stopCompletionTone}
+                    />
                   </div>
-                  <OverrunReadout value={countdown.overrunMs} active={countdown.overrunActive} />
+                  {isTappable && (
+                    <span className="tile-readout-overlay">
+                      {isRunning ? <PauseIcon /> : <PlayIcon />}
+                    </span>
+                  )}
                 </div>
-              ) : activeTool === 'pomodoro' ? (
-                <div className="hero-readout-shell">
-                  <div className={`hero-readout${tool.readoutBlinking ? ' hero-readout-expired' : ''}`}>
-                    {formatDuration(tool.displayMs)}
-                  </div>
+                <OverrunReadout value={countdown.overrunMs} active={countdown.overrunActive} />
+              </div>
+            ) : activeTool === 'pomodoro' ? (
+              <div className="hero-readout-shell">
+                <div
+                  className={`tile-readout-wrap${isTappable ? ' tile-readout-tappable' : ''}${tool.readoutBlinking ? ' tile-readout-expired' : ''}`}
+                  {...(isTappable ? {
+                    onClick: handleReadoutTap,
+                    onKeyDown: handleReadoutKey,
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-label': isRunning ? 'Pause' : 'Resume',
+                  } : {})}
+                >
+                  {isIdle ? (
+                    <div className="tile-pomo-idle hero-pomo-idle">
+                      <span className="tile-pomo-label">Work</span>
+                      <div className="tile-readout-input hero-readout-input">
+                        <TimePartsInput
+                          refs={pomo.workRefs}
+                          label="Work"
+                          parts={pomo.workInputParts}
+                          disabled={false}
+                          invalid={pomo.workInvalid}
+                          onPartChange={pomo.setWorkPart}
+                          onPartBlur={pomo.padWorkPart}
+                          onFocus={stopCompletionTone}
+                        />
+                      </div>
+                      <span className="tile-pomo-label">Break</span>
+                      <div className="tile-readout-input tile-readout-input-sm hero-readout-input">
+                        <TimePartsInput
+                          refs={pomo.breakRefs}
+                          label="Break"
+                          parts={pomo.breakInputParts}
+                          disabled={false}
+                          invalid={pomo.breakInvalid}
+                          onPartChange={pomo.setBreakPart}
+                          onPartBlur={pomo.padBreakPart}
+                          onFocus={stopCompletionTone}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="tile-readout-input hero-readout-input">
+                      <TimePartsInput
+                        refs={pomo.workRefs}
+                        label="HH:MM:SS"
+                        parts={msToTimeParts(pomo.displayMs)}
+                        disabled={true}
+                        invalid={false}
+                        onPartChange={pomo.setWorkPart}
+                        onPartBlur={pomo.padWorkPart}
+                        onFocus={stopCompletionTone}
+                      />
+                    </div>
+                  )}
+                  {isTappable && (
+                    <span className="tile-readout-overlay">
+                      {isRunning ? <PauseIcon /> : <PlayIcon />}
+                    </span>
+                  )}
+                </div>
+                <div className="pomo-session-controls">
+                  {isIdle && (
+                    <button
+                      type="button"
+                      className="pomo-session-btn"
+                      onClick={decrementSessions}
+                      aria-label="Decrease sessions"
+                    >
+                      −
+                    </button>
+                  )}
                   <PomodoroSessionDots
                     currentSession={pomo.state.currentSession}
                     sessionsPerCycle={pomo.sessionsPerCycleDisplay}
                     currentPhase={pomo.state.currentPhase}
                     status={pomo.state.status}
                   />
+                  {isIdle && (
+                    <button
+                      type="button"
+                      className="pomo-session-btn"
+                      onClick={incrementSessions}
+                      aria-label="Increase sessions"
+                    >
+                      +
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <div className={`hero-readout${tool.readoutBlinking ? ' hero-readout-expired' : ''}`}>
-                  {formatDuration(tool.displayMs)}
-                </div>
-              )}
-
-              <div className="hero-meta">{tool.statusCopy}</div>
-
-              <div className="hero-progress">
-                <span style={{ width: `${tool.progress}%` }} />
               </div>
+            ) : (
+              <div
+                className={`tile-readout-wrap${isTappable ? ' tile-readout-tappable' : ''}${tool.readoutBlinking ? ' tile-readout-expired' : ''}`}
+                {...(isTappable ? {
+                  onClick: handleReadoutTap,
+                  onKeyDown: handleReadoutKey,
+                  role: 'button',
+                  tabIndex: 0,
+                  'aria-label': isRunning ? 'Pause' : 'Resume',
+                } : {})}
+              >
+                <div className="tile-readout-input hero-readout-input">
+                  <TimePartsInput
+                    refs={timer.inputRefs}
+                    label="HH:MM:SS"
+                    parts={isIdle ? timer.inputParts : msToTimeParts(timer.displayMs)}
+                    disabled={!isIdle}
+                    invalid={isIdle && timer.inputInvalid}
+                    onPartChange={timer.setInputPart}
+                    onPartBlur={timer.padInputPart}
+                    onFocus={stopCompletionTone}
+                  />
+                </div>
+                {isTappable && (
+                  <span className="tile-readout-overlay">
+                    {isRunning ? <PauseIcon /> : <PlayIcon />}
+                  </span>
+                )}
+              </div>
+            )}
 
-              <div className="hero-controls">
-                <IconButton
-                  label={isIdle ? `Start ${activeTool}` : `Restart ${activeTool}`}
+            <div className="hero-meta">{tool.statusCopy}</div>
+
+            <div className="hero-progress">
+              <span style={{ width: `${tool.progress}%` }} />
+            </div>
+
+            <div className="hero-controls">
+              {isIdle ? (
+                <button
+                  type="button"
+                  className="tile-start-button"
                   onClick={tool.start}
                   disabled={tool.inputInvalid}
                 >
-                  {isIdle ? <PlayIcon /> : <RestartIcon />}
-                </IconButton>
-                <IconButton
-                  label={isPaused ? `Resume ${activeTool}` : `Pause ${activeTool}`}
-                  onClick={isPaused ? tool.resume : tool.pause}
-                  disabled={!isRunning && !isPaused}
-                >
-                  {isPaused ? <ResumeIcon /> : <PauseIcon />}
-                </IconButton>
-                <IconButton
-                  label={`Stop ${activeTool}`}
-                  onClick={tool.stop}
-                  disabled={isIdle}
-                >
-                  <StopIcon />
-                </IconButton>
-              </div>
-            </section>
-
-            {activeTool === 'countdown' ? (
-              <section className="input-strip">
-                <TimePartsInput
-                  refs={countdown.inputRefs}
-                  label="HH:MM:SS"
-                  parts={countdown.inputParts}
-                  disabled={tool.inputDisabled}
-                  invalid={tool.inputInvalid}
-                  onPartChange={countdown.setInputPart}
-                  onPartBlur={countdown.padInputPart}
-                  onFocus={stopCompletionTone}
-                />
-              </section>
-            ) : activeTool === 'timer' ? (
-              <section className="input-strip">
-                <TimePartsInput
-                  refs={timer.inputRefs}
-                  label="HH:MM:SS"
-                  parts={timer.inputParts}
-                  disabled={tool.inputDisabled}
-                  invalid={tool.inputInvalid}
-                  onPartChange={timer.setInputPart}
-                  onPartBlur={timer.padInputPart}
-                  onFocus={stopCompletionTone}
-                />
-              </section>
-            ) : (
-              <section className="input-strip">
-                <div className="pomo-input-strip">
-                  <TimePartsInput
-                    refs={pomo.workRefs}
-                    label="Work"
-                    parts={pomo.workInputParts}
-                    disabled={tool.inputDisabled}
-                    invalid={pomo.workInvalid}
-                    onPartChange={pomo.setWorkPart}
-                    onPartBlur={pomo.padWorkPart}
-                    onFocus={stopCompletionTone}
-                  />
-                  <TimePartsInput
-                    refs={pomo.breakRefs}
-                    label="Break"
-                    parts={pomo.breakInputParts}
-                    disabled={tool.inputDisabled}
-                    invalid={pomo.breakInvalid}
-                    onPartChange={pomo.setBreakPart}
-                    onPartBlur={pomo.padBreakPart}
-                    onFocus={stopCompletionTone}
-                  />
-                  <label className="inline-input">
-                    <span>Sessions</span>
-                    <div className="time-input-group" aria-invalid={pomo.sessionsInvalid}>
-                      <input
-                        ref={pomo.sessionsRef}
-                        className="time-segment pomo-sessions-input"
-                        type="text"
-                        inputMode="numeric"
-                        aria-label="Sessions"
-                        value={pomo.sessionsInput}
-                        disabled={tool.inputDisabled}
-                        maxLength={2}
-                        onFocus={(e) => { stopCompletionTone(); e.currentTarget.select() }}
-                        onChange={(e) => pomo.setSessionsInput(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                        onBlur={() => {
-                          const n = Number(pomo.sessionsInput)
-                          if (pomo.sessionsInput === '' || !Number.isInteger(n) || n < 1) {
-                            pomo.setSessionsInput(DEFAULT_POMODORO_SESSIONS)
-                          }
-                        }}
-                      />
-                    </div>
-                  </label>
-                </div>
-              </section>
-            )}
-          </>
+                  Start {toolLabel}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="tile-pill-button tile-pill-button-accent"
+                    onClick={tool.start}
+                    disabled={tool.inputInvalid}
+                  >
+                    {tool.restartLabel}
+                  </button>
+                  <button
+                    type="button"
+                    className="tile-pill-button"
+                    onClick={tool.stop}
+                  >
+                    Stop
+                  </button>
+                </>
+              )}
+            </div>
+          </section>
         ) : (
           <DashboardView
             pendingLeave={pendingViewSwitch !== null && appView === 'dashboard'}
