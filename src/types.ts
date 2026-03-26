@@ -36,13 +36,16 @@ export interface CountdownState {
   alertedAt: number | null
 }
 
+export interface Split {
+  cumulativeMs: number
+  splitMs: number
+}
+
 export interface TimerState {
-  targetMs: number
   mainElapsedMs: number
   startedAt: number | null
   status: ToolStatus
-  targetReachedAt: number | null
-  alertedAt: number | null
+  splits: Split[]
 }
 
 export interface PomodoroState {
@@ -62,7 +65,6 @@ export interface StoredPreferences {
   activeTool: ToolKind
   appView: AppView
   countdownInputParts: TimeParts
-  timerInputParts: TimeParts
   pomodoroInputParts: TimeParts
   pomoBreakInputParts: TimeParts
   pomoSessionsInput: string
@@ -82,6 +84,7 @@ export interface ToolFace {
   inputInvalid: boolean
   inputDisabled: boolean
   restartLabel: string
+  split?: () => void
   start: () => void
   pause: () => void
   resume: () => void
@@ -92,6 +95,6 @@ export const TIME_PART_ORDER: TimePartKey[] = ['hours', 'minutes', 'seconds']
 
 export const TOOL_LABELS: Record<ToolKind, string> = {
   countdown: 'Countdown',
-  timer: 'Timer',
+  timer: 'Split Timer',
   pomodoro: 'Pomodoro',
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import type { AppView, ToolKind, ToolFace } from './types'
 import { TOOL_LABELS } from './types'
-import { formatDuration, msToTimeParts } from './lib/time'
+import { formatDuration, formatSplitTime, msToTimeParts } from './lib/time'
 import { loadStoredPreferences, saveStoredPreferences, saveStoredPreferencesSync } from './lib/preferences'
 import { setSoundMuted as configureSoundMuted, stopCompletionTone } from './lib/notifications'
 import { useCountdown } from './hooks/useCountdown'
@@ -14,6 +14,7 @@ import {
   PauseIcon,
   PlayIcon,
   PomodoroSessionDots,
+  SplitReadout,
   TimePartsInput,
 } from './components'
 import { DashboardView } from './components/DashboardView'
@@ -31,9 +32,10 @@ function App() {
   pendingViewSwitchRef.current = pendingViewSwitch
 
   const dashboardTimersRef = useRef<number[]>([])
+  const splitBodyRef = useRef<HTMLDivElement>(null)
 
   const countdown = useCountdown(STORED_PREFS.countdownInputParts)
-  const timer = useTimer(STORED_PREFS.timerInputParts)
+  const timer = useTimer()
   const pomo = usePomodoro(
     STORED_PREFS.pomodoroInputParts,
     STORED_PREFS.pomoBreakInputParts,
@@ -42,6 +44,10 @@ function App() {
 
   const tools: Record<ToolKind, ToolFace> = { countdown, timer, pomodoro: pomo }
   const tool = tools[activeTool]
+
+  useEffect(() => {
+    splitBodyRef.current?.scrollTo({ top: splitBodyRef.current.scrollHeight })
+  }, [timer.state.splits.length])
 
   const isIdle = tool.status === 'idle'
   const isRunning = tool.status === 'running'
@@ -80,7 +86,6 @@ function App() {
   const prefsRef = useRef({
     activeTool, appView,
     countdownInputParts: countdown.inputParts,
-    timerInputParts: timer.inputParts,
     pomodoroInputParts: pomo.workInputParts,
     pomoBreakInputParts: pomo.breakInputParts,
     pomoSessionsInput: pomo.sessionsInput,
@@ -92,7 +97,6 @@ function App() {
       activeTool,
       appView,
       countdownInputParts: countdown.inputParts,
-      timerInputParts: timer.inputParts,
       pomodoroInputParts: pomo.workInputParts,
       pomoBreakInputParts: pomo.breakInputParts,
       pomoSessionsInput: pomo.sessionsInput,
@@ -103,7 +107,7 @@ function App() {
   }, [
     activeTool,
     appView,
-    countdown.inputParts, timer.inputParts,
+    countdown.inputParts,
     pomo.workInputParts, pomo.breakInputParts, pomo.sessionsInput,
     soundMuted,
   ])
@@ -138,12 +142,10 @@ function App() {
 
       if (appView === 'focus') {
         if (tool.status === 'running' || tool.status === 'paused') {
-          let remaining: number
+          let remaining = 0
           if (activeTool === 'countdown') {
             remaining = countdown.state.remainingMs
-          } else if (activeTool === 'timer') {
-            remaining = Math.max(timer.state.targetMs - timer.state.mainElapsedMs, 0)
-          } else {
+          } else if (activeTool === 'pomodoro') {
             remaining = pomo.state.remainingMs
           }
           if (remaining > 0) values.push(remaining)
@@ -170,7 +172,6 @@ function App() {
   }, [
     appView, activeTool, tool.status,
     countdown.state.remainingMs,
-    timer.state.targetMs, timer.state.mainElapsedMs,
     pomo.state.remainingMs,
   ])
 
@@ -411,7 +412,7 @@ function App() {
               </div>
             ) : (
               <div
-                className={`tile-readout-wrap${isTappable ? ' tile-readout-tappable' : ''}${tool.readoutBlinking ? ' tile-readout-expired' : ''}`}
+                className={`tile-readout-wrap${isTappable ? ' tile-readout-tappable' : ''}`}
                 {...(isTappable ? {
                   onClick: handleReadoutTap,
                   onKeyDown: handleReadoutKey,
@@ -420,17 +421,8 @@ function App() {
                   'aria-label': isRunning ? 'Pause' : 'Resume',
                 } : {})}
               >
-                <div className="tile-readout-input hero-readout-input">
-                  <TimePartsInput
-                    refs={timer.inputRefs}
-                    label="HH:MM:SS"
-                    parts={isIdle ? timer.inputParts : msToTimeParts(timer.displayMs)}
-                    disabled={!isIdle}
-                    invalid={isIdle && timer.inputInvalid}
-                    onPartChange={timer.setInputPart}
-                    onPartBlur={timer.padInputPart}
-                    onFocus={stopCompletionTone}
-                  />
+                <div className="hero-readout-input">
+                  <SplitReadout ms={timer.displayMs} />
                 </div>
                 {isTappable && (
                   <span className="tile-readout-overlay">
@@ -458,14 +450,24 @@ function App() {
                 </button>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    className="tile-pill-button tile-pill-button-accent"
-                    onClick={tool.start}
-                    disabled={tool.inputInvalid}
-                  >
-                    {tool.restartLabel}
-                  </button>
+                  {tool.split && isRunning ? (
+                    <button
+                      type="button"
+                      className="tile-pill-button tile-pill-button-accent"
+                      onClick={tool.split}
+                    >
+                      Split
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="tile-pill-button tile-pill-button-accent"
+                      onClick={tool.start}
+                      disabled={tool.inputInvalid}
+                    >
+                      {tool.restartLabel}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="tile-pill-button"
@@ -476,6 +478,29 @@ function App() {
                 </>
               )}
             </div>
+
+            {activeTool === 'timer' && (
+              <div className="splits-list hero-splits-list">
+                {timer.state.splits.length > 0 && (
+                  <>
+                    <div className="splits-header">
+                      <span>#</span>
+                      <span>Split</span>
+                      <span>Cumulative</span>
+                    </div>
+                    <div className="splits-body" ref={splitBodyRef}>
+                      {timer.state.splits.map((s, i) => (
+                        <div className="splits-row" key={i}>
+                          <span>{i + 1}</span>
+                          <span>{formatSplitTime(s.splitMs)}</span>
+                          <span>{formatSplitTime(s.cumulativeMs)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </section>
         ) : (
           <DashboardView

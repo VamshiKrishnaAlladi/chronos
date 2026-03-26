@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import type { DashboardTileConfig, ToolFace, ToolStatus } from '../types'
 import { TOOL_LABELS } from '../types'
-import { formatDuration, msToTimeParts } from '../lib/time'
+import { formatDuration, formatSplitTime, msToTimeParts } from '../lib/time'
 import { stopCompletionTone } from '../lib/notifications'
 import { useCountdown } from '../hooks/useCountdown'
 import { useTimer } from '../hooks/useTimer'
@@ -12,6 +12,7 @@ import {
   PauseIcon,
   PlayIcon,
   PomodoroSessionDots,
+  SplitReadout,
   TimePartsInput,
 } from '.'
 
@@ -47,6 +48,7 @@ interface TileCardLayoutProps {
   readoutContent: ReactNode
   inlineReadout?: ReactNode
   extraReadout?: ReactNode
+  afterControls?: ReactNode
 }
 
 function TileCardLayout({
@@ -57,6 +59,7 @@ function TileCardLayout({
   readoutContent,
   inlineReadout,
   extraReadout,
+  afterControls,
 }: TileCardLayoutProps) {
   const [editingName, setEditingName] = useState(false)
   const [nameValue, setNameValue] = useState(config.name)
@@ -194,14 +197,24 @@ function TileCardLayout({
             </button>
           ) : (
             <>
-              <button
-                type="button"
-                className="tile-pill-button tile-pill-button-accent"
-                onClick={tool.start}
-                disabled={tool.inputInvalid}
-              >
-                {tool.restartLabel}
-              </button>
+              {tool.split && isRunning ? (
+                <button
+                  type="button"
+                  className="tile-pill-button tile-pill-button-accent"
+                  onClick={tool.split}
+                >
+                  Split
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="tile-pill-button tile-pill-button-accent"
+                  onClick={tool.start}
+                  disabled={tool.inputInvalid}
+                >
+                  {tool.restartLabel}
+                </button>
+              )}
               <button
                 type="button"
                 className="tile-pill-button"
@@ -212,6 +225,7 @@ function TileCardLayout({
             </>
           )}
         </div>
+        {afterControls}
       </div>
 
       {confirmingRemove && (
@@ -291,24 +305,18 @@ function TimerTileContent({
   config,
   onConfigChange,
   onRemove,
-  onInputsChange,
   onStatusChange,
-  onRemainingMsChange,
 }: TimerTileProps) {
-  const tmr = useTimer(config.inputParts)
-
-  useEffect(() => {
-    onInputsChange(config.id, { inputParts: tmr.inputParts })
-  }, [tmr.inputParts, config.id, onInputsChange])
+  const tmr = useTimer()
+  const splitBodyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     onStatusChange(config.id, tmr.status)
   }, [tmr.status, config.id, onStatusChange])
 
-  const timerRemainingMs = Math.max(tmr.state.targetMs - tmr.state.mainElapsedMs, 0)
   useEffect(() => {
-    onRemainingMsChange(config.id, timerRemainingMs)
-  }, [timerRemainingMs, config.id, onRemainingMsChange])
+    splitBodyRef.current?.scrollTo({ top: splitBodyRef.current.scrollHeight })
+  }, [tmr.state.splits.length])
 
   const isIdle = tmr.status === 'idle'
 
@@ -319,18 +327,31 @@ function TimerTileContent({
       onConfigChange={onConfigChange}
       onRemove={onRemove}
       readoutContent={
-        <div className="tile-readout-input">
-          <TimePartsInput
-            refs={tmr.inputRefs}
-            label="HH:MM:SS"
-            parts={isIdle ? tmr.inputParts : msToTimeParts(tmr.displayMs)}
-            disabled={!isIdle}
-            invalid={isIdle && tmr.inputInvalid}
-            onPartChange={tmr.setInputPart}
-            onPartBlur={tmr.padInputPart}
-            onFocus={stopCompletionTone}
-          />
-        </div>
+        <SplitReadout ms={tmr.displayMs} />
+      }
+      afterControls={
+        !isIdle ? (
+          <div className="splits-list tile-splits-list">
+            {tmr.state.splits.length > 0 && (
+              <>
+                <div className="splits-header">
+                  <span>#</span>
+                  <span>Split</span>
+                  <span>Cumulative</span>
+                </div>
+                <div className="splits-body" ref={splitBodyRef}>
+                  {tmr.state.splits.map((s, i) => (
+                    <div className="splits-row" key={i}>
+                      <span>{i + 1}</span>
+                      <span>{formatSplitTime(s.splitMs)}</span>
+                      <span>{formatSplitTime(s.cumulativeMs)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        ) : null
       }
     />
   )

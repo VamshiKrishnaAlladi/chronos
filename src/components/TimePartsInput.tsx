@@ -3,7 +3,7 @@ import { TimeSegmentInput } from './TimeSegmentInput'
 import { type TimePartKey, type TimeParts, TIME_PART_ORDER } from '../types'
 
 interface TimePartsInputProps {
-  refs: Record<TimePartKey, RefObject<HTMLInputElement | null>>
+  refs?: Record<TimePartKey, RefObject<HTMLInputElement | null>>
   label: string
   parts: TimeParts
   disabled: boolean
@@ -24,8 +24,8 @@ export function TimePartsInput({
   onFocus,
 }: TimePartsInputProps) {
   function focusPartRef(part: TimePartKey) {
-    refs[part].current?.focus()
-    refs[part].current?.select()
+    refs?.[part].current?.focus()
+    refs?.[part].current?.select()
   }
 
   return (
@@ -35,7 +35,7 @@ export function TimePartsInput({
         {TIME_PART_ORDER.map((part, index) => (
           <span key={part} className="time-segment-wrap">
             <TimeSegmentInput
-              inputRef={refs[part]}
+              inputRef={refs?.[part]}
               label={`${label} ${part}`}
               value={parts[part]}
               disabled={disabled}

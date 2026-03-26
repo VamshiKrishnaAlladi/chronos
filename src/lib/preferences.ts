@@ -4,7 +4,6 @@ import { splitTimeParts, parseStoredTimeParts } from './time'
 const PREFERENCES_STORAGE_KEY = 'chronos-preferences-v1'
 
 export const DEFAULT_COUNTDOWN_INPUT = '00:25:00'
-export const DEFAULT_TIMER_INPUT = '00:25:00'
 export const DEFAULT_POMODORO_INPUT = '00:25:00'
 export const DEFAULT_POMODORO_BREAK_INPUT = '00:05:00'
 export const DEFAULT_POMODORO_SESSIONS = '4'
@@ -13,7 +12,6 @@ const DEFAULTS: StoredPreferences = {
   activeTool: 'countdown',
   appView: 'focus',
   countdownInputParts: splitTimeParts(DEFAULT_COUNTDOWN_INPUT),
-  timerInputParts: splitTimeParts(DEFAULT_TIMER_INPUT),
   pomodoroInputParts: splitTimeParts(DEFAULT_POMODORO_INPUT),
   pomoBreakInputParts: splitTimeParts(DEFAULT_POMODORO_BREAK_INPUT),
   pomoSessionsInput: DEFAULT_POMODORO_SESSIONS,
@@ -51,7 +49,6 @@ export function loadStoredPreferences(): StoredPreferences {
       activeTool,
       appView,
       countdownInputParts: parseStoredTimeParts(parsed.countdownInputParts, DEFAULT_COUNTDOWN_INPUT),
-      timerInputParts: parseStoredTimeParts(parsed.timerInputParts, DEFAULT_TIMER_INPUT),
       pomodoroInputParts: parseStoredTimeParts(parsed.pomodoroInputParts, DEFAULT_POMODORO_INPUT),
       pomoBreakInputParts: parseStoredTimeParts(parsed.pomoBreakInputParts, DEFAULT_POMODORO_BREAK_INPUT),
       pomoSessionsInput,

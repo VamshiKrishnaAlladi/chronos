@@ -1,142 +1,68 @@
-import { useCallback, useRef, useState, type RefObject } from 'react'
-import type { TimeParts, TimePartKey, TimerState, ToolFace } from '../types'
-import {
-  normalizeTimeParts,
-  timePartsToMs,
-  isValidTimeParts,
-  padTimePart,
-  formatClockTime,
-} from '../lib/time'
-import { primeAudio, stopCompletionTone } from '../lib/notifications'
-import { useTickInterval } from './useTickInterval'
-import { useAlertEffect } from './useAlertEffect'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { TimerState, ToolFace } from '../types'
+import { formatClockTime } from '../lib/time'
 
 export interface UseTimerReturn extends ToolFace {
   state: TimerState
-  inputParts: TimeParts
-  inputRefs: Record<TimePartKey, RefObject<HTMLInputElement | null>>
-  setInputPart: (part: TimePartKey, value: string) => void
-  padInputPart: (part: TimePartKey) => void
+  split: () => void
 }
 
-export function useTimer(initialInputParts: TimeParts): UseTimerReturn {
-  const [state, setState] = useState<TimerState>(() => ({
-    targetMs: timePartsToMs(normalizeTimeParts(initialInputParts)),
+export function useTimer(): UseTimerReturn {
+  const [state, setState] = useState<TimerState>({
     mainElapsedMs: 0,
     startedAt: null,
     status: 'idle',
-    targetReachedAt: null,
-    alertedAt: null,
-  }))
-  const [inputParts, setInputParts] = useState<TimeParts>(initialInputParts)
+    splits: [],
+  })
 
-  const inputRefs: Record<TimePartKey, RefObject<HTMLInputElement | null>> = {
-    hours: useRef<HTMLInputElement>(null),
-    minutes: useRef<HTMLInputElement>(null),
-    seconds: useRef<HTMLInputElement>(null),
-  }
+  const rafRef = useRef<number>(0)
 
-  const parsedInputMs = timePartsToMs(normalizeTimeParts(inputParts))
-  const inputInvalid = !isValidTimeParts(inputParts) || parsedInputMs === 0
-  const inputDisabled = state.status === 'running' || state.status === 'paused'
-  const displayMs = state.status === 'idle' ? 0 : state.mainElapsedMs
-  const readoutBlinking = state.targetReachedAt !== null
+  useEffect(() => {
+    if (state.status !== 'running' || state.startedAt === null) return
 
-  const progress =
-    state.status === 'idle' || state.targetMs <= 0
-      ? 0
-      : Math.min(Math.round((state.mainElapsedMs / state.targetMs) * 100), 100)
+    const origin = state.startedAt
+    function tick() {
+      setState((prev) => {
+        if (prev.status !== 'running' || prev.startedAt === null) return prev
+        return { ...prev, mainElapsedMs: Math.max(Date.now() - origin, 0) }
+      })
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [state.status, state.startedAt])
+
+  const displayMs = state.mainElapsedMs
+  const readoutBlinking = false
 
   let statusCopy: string
   if (state.status === 'idle') {
     statusCopy = 'Ready'
-  } else if (state.targetReachedAt !== null) {
-    statusCopy = `Alerted ${formatClockTime(state.targetReachedAt)}`
   } else if (state.status === 'running' && state.startedAt !== null) {
-    statusCopy = `Alerts ${formatClockTime(state.startedAt + state.targetMs)}`
+    statusCopy = `Started ${formatClockTime(state.startedAt)}`
   } else if (state.status === 'paused') {
     statusCopy = 'Paused'
   } else {
     statusCopy = 'Running'
   }
 
-  useTickInterval(
-    state.status === 'running' && state.startedAt !== null,
-    (now) => {
-      setState((prev) => {
-        if (prev.status !== 'running' || prev.startedAt === null) return prev
-
-        const mainElapsedMs =
-          Math.max(Math.floor((now - prev.startedAt) / 1000), 0) * 1000
-        const reachedTarget =
-          prev.targetReachedAt === null &&
-          prev.targetMs > 0 &&
-          mainElapsedMs >= prev.targetMs
-
-        if (!reachedTarget && mainElapsedMs === prev.mainElapsedMs) return prev
-
-        if (reachedTarget) {
-          return {
-            ...prev,
-            mainElapsedMs,
-            targetReachedAt: prev.startedAt + prev.targetMs,
-            alertedAt: null,
-          }
-        }
-
-        return { ...prev, mainElapsedMs }
-      })
-    },
-    [state.startedAt],
-  )
-
-  useAlertEffect(
-    state.targetReachedAt !== null && state.alertedAt !== state.targetReachedAt,
-    () => {
-      setState((prev) =>
-        prev.targetReachedAt !== null && prev.alertedAt !== prev.targetReachedAt
-          ? { ...prev, alertedAt: prev.targetReachedAt }
-          : prev,
-      )
-    },
-    [state.targetReachedAt, state.alertedAt],
-  )
-
   const start = useCallback(() => {
-    stopCompletionTone()
-
-    const nextParts = normalizeTimeParts(inputParts)
-    setInputParts(nextParts)
-
-    const nextTargetMs = timePartsToMs(nextParts)
-    if (!isValidTimeParts(nextParts) || nextTargetMs === 0) return
-
-    void (async () => {
-      await primeAudio()
-      const now = Date.now()
-
-      setState({
-        targetMs: nextTargetMs,
-        mainElapsedMs: 0,
-        startedAt: now,
-        status: 'running',
-        targetReachedAt: null,
-        alertedAt: null,
-      })
-    })()
-  }, [inputParts])
+    const now = Date.now()
+    setState({
+      mainElapsedMs: 0,
+      startedAt: now,
+      status: 'running',
+      splits: [],
+    })
+  }, [])
 
   const pause = useCallback(() => {
-    stopCompletionTone()
     const now = Date.now()
-
     setState((prev) => {
       if (prev.status !== 'running' || prev.startedAt === null) return prev
-
       return {
         ...prev,
-        mainElapsedMs:
-          Math.max(Math.floor((now - prev.startedAt) / 1000), 0) * 1000,
+        mainElapsedMs: Math.max(now - prev.startedAt, 0),
         startedAt: null,
         status: 'paused',
       }
@@ -144,58 +70,56 @@ export function useTimer(initialInputParts: TimeParts): UseTimerReturn {
   }, [])
 
   const resume = useCallback(() => {
-    stopCompletionTone()
-
-    void (async () => {
-      await primeAudio()
-      const now = Date.now()
-
-      setState((prev) => {
-        if (prev.status !== 'paused') return prev
-        return {
-          ...prev,
-          startedAt: now - prev.mainElapsedMs,
-          status: 'running',
-        }
-      })
-    })()
+    const now = Date.now()
+    setState((prev) => {
+      if (prev.status !== 'paused') return prev
+      return {
+        ...prev,
+        startedAt: now - prev.mainElapsedMs,
+        status: 'running',
+      }
+    })
   }, [])
 
   const stop = useCallback(() => {
-    stopCompletionTone()
-
     setState({
-      targetMs: parsedInputMs,
       mainElapsedMs: 0,
       startedAt: null,
       status: 'idle',
-      targetReachedAt: null,
-      alertedAt: null,
+      splits: [],
     })
-  }, [parsedInputMs])
-
-  const setInputPart = useCallback((part: TimePartKey, value: string) => {
-    setInputParts((prev) => ({ ...prev, [part]: value }))
   }, [])
 
-  const padInputPart = useCallback((part: TimePartKey) => {
-    setInputParts((prev) => ({ ...prev, [part]: padTimePart(prev[part]) }))
+  const split = useCallback(() => {
+    const now = Date.now()
+    setState((prev) => {
+      if (prev.status !== 'running' || prev.startedAt === null) return prev
+      const cumulativeMs = Math.max(now - prev.startedAt, 0)
+      const lastCumulative =
+        prev.splits.length > 0
+          ? prev.splits[prev.splits.length - 1].cumulativeMs
+          : 0
+      return {
+        ...prev,
+        splits: [
+          ...prev.splits,
+          { cumulativeMs, splitMs: cumulativeMs - lastCumulative },
+        ],
+      }
+    })
   }, [])
 
   return {
     state,
-    inputParts,
-    inputRefs,
-    setInputPart,
-    padInputPart,
     displayMs,
     status: state.status,
     statusCopy,
-    progress,
+    progress: 0,
     readoutBlinking,
-    inputInvalid,
-    inputDisabled,
+    inputInvalid: false,
+    inputDisabled: true,
     restartLabel: 'Restart',
+    split,
     start,
     pause,
     resume,

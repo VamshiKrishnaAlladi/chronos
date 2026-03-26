@@ -1,7 +1,7 @@
 import { type RefObject } from 'react'
 
 interface TimeSegmentInputProps {
-  inputRef: RefObject<HTMLInputElement | null>
+  inputRef?: RefObject<HTMLInputElement | null>
   label: string
   value: string
   disabled: boolean

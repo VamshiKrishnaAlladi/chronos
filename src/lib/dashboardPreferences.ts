@@ -3,7 +3,6 @@ import { TOOL_LABELS } from '../types'
 import { splitTimeParts, parseStoredTimeParts } from './time'
 import {
   DEFAULT_COUNTDOWN_INPUT,
-  DEFAULT_TIMER_INPUT,
   DEFAULT_POMODORO_INPUT,
   DEFAULT_POMODORO_BREAK_INPUT,
   DEFAULT_POMODORO_SESSIONS,
@@ -39,7 +38,7 @@ export function loadDashboardPreferences(): DashboardPreferences {
         const defaultInput = kind === 'pomodoro'
           ? DEFAULT_POMODORO_INPUT
           : kind === 'timer'
-            ? DEFAULT_TIMER_INPUT
+            ? '00:00:00'
             : DEFAULT_COUNTDOWN_INPUT
 
         return {
@@ -87,7 +86,7 @@ export function createDefaultTileConfig(kind: ToolKind): DashboardTileConfig {
   const defaultInput = kind === 'pomodoro'
     ? DEFAULT_POMODORO_INPUT
     : kind === 'timer'
-      ? DEFAULT_TIMER_INPUT
+      ? '00:00:00'
       : DEFAULT_COUNTDOWN_INPUT
 
   return {
