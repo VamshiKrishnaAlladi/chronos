@@ -58,6 +58,15 @@ export function formatDuration(ms: number): string {
   return [hours, minutes, seconds].map((value) => value.toString().padStart(2, '0')).join(':')
 }
 
+export function msToTimeParts(ms: number): TimeParts {
+  const totalSeconds = Math.max(Math.floor(ms / 1000), 0)
+  return {
+    hours: String(Math.floor(totalSeconds / 3600)).padStart(2, '0'),
+    minutes: String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0'),
+    seconds: String(totalSeconds % 60).padStart(2, '0'),
+  }
+}
+
 export function formatClockTime(timestamp: number): string {
   return dayjs(timestamp).format('hh:mm:ss A')
 }

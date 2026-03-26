@@ -1,22 +1,17 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import type { DashboardTileConfig, ToolFace, ToolStatus } from '../types'
 import { TOOL_LABELS } from '../types'
-import { formatDuration } from '../lib/time'
+import { formatDuration, msToTimeParts } from '../lib/time'
 import { stopCompletionTone } from '../lib/notifications'
-import { DEFAULT_POMODORO_SESSIONS } from '../lib/preferences'
 import { useCountdown } from '../hooks/useCountdown'
 import { useTimer } from '../hooks/useTimer'
 import { usePomodoro } from '../hooks/usePomodoro'
 import { TileMenu } from './TileMenu'
 import {
   ConfirmDialog,
-  IconButton,
   PauseIcon,
   PlayIcon,
   PomodoroSessionDots,
-  RestartIcon,
-  ResumeIcon,
-  StopIcon,
   TimePartsInput,
 } from '.'
 
@@ -49,9 +44,9 @@ interface TileCardLayoutProps {
   tool: ToolFace
   onConfigChange: (tileId: string, updates: Partial<DashboardTileConfig>) => void
   onRemove: (tileId: string) => void
+  readoutContent: ReactNode
   inlineReadout?: ReactNode
   extraReadout?: ReactNode
-  inputs: ReactNode
 }
 
 function TileCardLayout({
@@ -59,9 +54,9 @@ function TileCardLayout({
   tool,
   onConfigChange,
   onRemove,
+  readoutContent,
   inlineReadout,
   extraReadout,
-  inputs,
 }: TileCardLayoutProps) {
   const [editingName, setEditingName] = useState(false)
   const [nameValue, setNameValue] = useState(config.name)
@@ -74,6 +69,7 @@ function TileCardLayout({
   const isIdle = tool.status === 'idle'
   const isRunning = tool.status === 'running'
   const isPaused = tool.status === 'paused'
+  const isTappable = isRunning || isPaused
 
   function commitName() {
     const trimmed = nameValue.trim()
@@ -106,6 +102,18 @@ function TileCardLayout({
       kind,
       ...(nameIsDefault ? {} : { name: config.name }),
     })
+  }
+
+  function handleReadoutTap() {
+    if (isRunning) tool.pause()
+    else if (isPaused) tool.resume()
+  }
+
+  function handleReadoutKey(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleReadoutTap()
+    }
   }
 
   return (
@@ -150,8 +158,22 @@ function TileCardLayout({
 
       <div className="tile-content">
         <div className="tile-readout-row">
-          <div className={`tile-readout${tool.readoutBlinking ? ' tile-readout-expired' : ''}`}>
-            {formatDuration(tool.displayMs)}
+          <div
+            className={`tile-readout-wrap${isTappable ? ' tile-readout-tappable' : ''}${tool.readoutBlinking ? ' tile-readout-expired' : ''}`}
+            {...(isTappable ? {
+              onClick: handleReadoutTap,
+              onKeyDown: handleReadoutKey,
+              role: 'button',
+              tabIndex: 0,
+              'aria-label': isRunning ? 'Pause' : 'Resume',
+            } : {})}
+          >
+            {readoutContent}
+            {isTappable && (
+              <span className="tile-readout-overlay">
+                {isRunning ? <PauseIcon /> : <PlayIcon />}
+              </span>
+            )}
           </div>
           {inlineReadout}
         </div>
@@ -161,25 +183,35 @@ function TileCardLayout({
           <span style={{ width: `${tool.progress}%` }} />
         </div>
         <div className="tile-controls">
-          <IconButton
-            label={isIdle ? 'Start' : 'Restart'}
-            onClick={tool.start}
-            disabled={tool.inputInvalid}
-          >
-            {isIdle ? <PlayIcon /> : <RestartIcon />}
-          </IconButton>
-          <IconButton
-            label={isPaused ? 'Resume' : 'Pause'}
-            onClick={isPaused ? tool.resume : tool.pause}
-            disabled={!isRunning && !isPaused}
-          >
-            {isPaused ? <ResumeIcon /> : <PauseIcon />}
-          </IconButton>
-          <IconButton label="Stop" onClick={tool.stop} disabled={isIdle}>
-            <StopIcon />
-          </IconButton>
+          {isIdle ? (
+            <button
+              type="button"
+              className="tile-start-button"
+              onClick={tool.start}
+              disabled={tool.inputInvalid}
+            >
+              Start Timer
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="tile-pill-button tile-pill-button-accent"
+                onClick={tool.start}
+                disabled={tool.inputInvalid}
+              >
+                Restart
+              </button>
+              <button
+                type="button"
+                className="tile-pill-button"
+                onClick={tool.stop}
+              >
+                Stop
+              </button>
+            </>
+          )}
         </div>
-        <div className="tile-inputs">{inputs}</div>
       </div>
 
       {confirmingRemove && (
@@ -220,28 +252,32 @@ function CountdownTileContent({
     onRemainingMsChange(config.id, cd.state.remainingMs)
   }, [cd.state.remainingMs, config.id, onRemainingMsChange])
 
+  const isIdle = cd.status === 'idle'
+
   return (
     <TileCardLayout
       config={config}
       tool={cd}
       onConfigChange={onConfigChange}
       onRemove={onRemove}
+      readoutContent={
+        <div className="tile-readout-input">
+          <TimePartsInput
+            refs={cd.inputRefs}
+            label="HH:MM:SS"
+            parts={isIdle ? cd.inputParts : msToTimeParts(cd.displayMs)}
+            disabled={!isIdle}
+            invalid={isIdle && cd.inputInvalid}
+            onPartChange={cd.setInputPart}
+            onPartBlur={cd.padInputPart}
+            onFocus={stopCompletionTone}
+          />
+        </div>
+      }
       inlineReadout={
         cd.overrunActive ? (
           <span className="tile-overrun">+ {formatDuration(cd.overrunMs)}</span>
         ) : null
-      }
-      inputs={
-        <TimePartsInput
-          refs={cd.inputRefs}
-          label="HH:MM:SS"
-          parts={cd.inputParts}
-          disabled={cd.inputDisabled}
-          invalid={cd.inputInvalid}
-          onPartChange={cd.setInputPart}
-          onPartBlur={cd.padInputPart}
-          onFocus={stopCompletionTone}
-        />
       }
     />
   )
@@ -274,23 +310,27 @@ function TimerTileContent({
     onRemainingMsChange(config.id, timerRemainingMs)
   }, [timerRemainingMs, config.id, onRemainingMsChange])
 
+  const isIdle = tmr.status === 'idle'
+
   return (
     <TileCardLayout
       config={config}
       tool={tmr}
       onConfigChange={onConfigChange}
       onRemove={onRemove}
-      inputs={
-        <TimePartsInput
-          refs={tmr.inputRefs}
-          label="HH:MM:SS"
-          parts={tmr.inputParts}
-          disabled={tmr.inputDisabled}
-          invalid={tmr.inputInvalid}
-          onPartChange={tmr.setInputPart}
-          onPartBlur={tmr.padInputPart}
-          onFocus={stopCompletionTone}
-        />
+      readoutContent={
+        <div className="tile-readout-input">
+          <TimePartsInput
+            refs={tmr.inputRefs}
+            label="HH:MM:SS"
+            parts={isIdle ? tmr.inputParts : msToTimeParts(tmr.displayMs)}
+            disabled={!isIdle}
+            invalid={isIdle && tmr.inputInvalid}
+            onPartChange={tmr.setInputPart}
+            onPartBlur={tmr.padInputPart}
+            onFocus={stopCompletionTone}
+          />
+        </div>
       }
     />
   )
@@ -328,19 +368,21 @@ function PomodoroTileContent({
     onRemainingMsChange(config.id, pomo.state.remainingMs)
   }, [pomo.state.remainingMs, config.id, onRemainingMsChange])
 
-  const onSessionsChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      pomo.setSessionsInput(e.target.value.replace(/\D/g, '').slice(0, 2))
-    },
-    [pomo.setSessionsInput],
-  )
-
-  const onSessionsBlur = useCallback(() => {
+  const incrementSessions = useCallback(() => {
     const n = Number(pomo.sessionsInput)
-    if (pomo.sessionsInput === '' || !Number.isInteger(n) || n < 1) {
-      pomo.setSessionsInput(DEFAULT_POMODORO_SESSIONS)
+    if (Number.isInteger(n) && n < 99) {
+      pomo.setSessionsInput(String(n + 1))
     }
   }, [pomo.sessionsInput, pomo.setSessionsInput])
+
+  const decrementSessions = useCallback(() => {
+    const n = Number(pomo.sessionsInput)
+    if (Number.isInteger(n) && n > 1) {
+      pomo.setSessionsInput(String(n - 1))
+    }
+  }, [pomo.sessionsInput, pomo.setSessionsInput])
+
+  const isIdle = pomo.status === 'idle'
 
   return (
     <TileCardLayout
@@ -348,57 +390,79 @@ function PomodoroTileContent({
       tool={pomo}
       onConfigChange={onConfigChange}
       onRemove={onRemove}
-      extraReadout={
-        <PomodoroSessionDots
-          currentSession={pomo.state.currentSession}
-          sessionsPerCycle={pomo.sessionsPerCycleDisplay}
-          currentPhase={pomo.state.currentPhase}
-          status={pomo.state.status}
-        />
-      }
-      inputs={
-        <div className="tile-pomo-inputs">
-          <TimePartsInput
-            refs={pomo.workRefs}
-            label="Work"
-            parts={pomo.workInputParts}
-            disabled={pomo.inputDisabled}
-            invalid={pomo.workInvalid}
-            onPartChange={pomo.setWorkPart}
-            onPartBlur={pomo.padWorkPart}
-            onFocus={handleStopTone}
-          />
-          <TimePartsInput
-            refs={pomo.breakRefs}
-            label="Break"
-            parts={pomo.breakInputParts}
-            disabled={pomo.inputDisabled}
-            invalid={pomo.breakInvalid}
-            onPartChange={pomo.setBreakPart}
-            onPartBlur={pomo.padBreakPart}
-            onFocus={handleStopTone}
-          />
-          <label className="inline-input">
-            <span>Sessions</span>
-            <div className="time-input-group" aria-invalid={pomo.sessionsInvalid}>
-              <input
-                ref={pomo.sessionsRef}
-                className="time-segment pomo-sessions-input"
-                type="text"
-                inputMode="numeric"
-                aria-label="Sessions"
-                value={pomo.sessionsInput}
-                disabled={pomo.inputDisabled}
-                maxLength={2}
-                onFocus={(e) => {
-                  handleStopTone()
-                  e.currentTarget.select()
-                }}
-                onChange={onSessionsChange}
-                onBlur={onSessionsBlur}
+      readoutContent={
+        isIdle ? (
+          <div className="tile-pomo-idle">
+            <span className="tile-pomo-label">Work</span>
+            <div className="tile-readout-input">
+              <TimePartsInput
+                refs={pomo.workRefs}
+                label="Work"
+                parts={pomo.workInputParts}
+                disabled={false}
+                invalid={pomo.workInvalid}
+                onPartChange={pomo.setWorkPart}
+                onPartBlur={pomo.padWorkPart}
+                onFocus={handleStopTone}
               />
             </div>
-          </label>
+            <span className="tile-pomo-label">Break</span>
+            <div className="tile-readout-input tile-readout-input-sm">
+              <TimePartsInput
+                refs={pomo.breakRefs}
+                label="Break"
+                parts={pomo.breakInputParts}
+                disabled={false}
+                invalid={pomo.breakInvalid}
+                onPartChange={pomo.setBreakPart}
+                onPartBlur={pomo.padBreakPart}
+                onFocus={handleStopTone}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="tile-readout-input">
+            <TimePartsInput
+              refs={pomo.workRefs}
+              label="HH:MM:SS"
+              parts={msToTimeParts(pomo.displayMs)}
+              disabled={true}
+              invalid={false}
+              onPartChange={pomo.setWorkPart}
+              onPartBlur={pomo.padWorkPart}
+              onFocus={handleStopTone}
+            />
+          </div>
+        )
+      }
+      extraReadout={
+        <div className="pomo-session-controls">
+          {isIdle && (
+            <button
+              type="button"
+              className="pomo-session-btn"
+              onClick={decrementSessions}
+              aria-label="Decrease sessions"
+            >
+              −
+            </button>
+          )}
+          <PomodoroSessionDots
+            currentSession={pomo.state.currentSession}
+            sessionsPerCycle={pomo.sessionsPerCycleDisplay}
+            currentPhase={pomo.state.currentPhase}
+            status={pomo.state.status}
+          />
+          {isIdle && (
+            <button
+              type="button"
+              className="pomo-session-btn"
+              onClick={incrementSessions}
+              aria-label="Increase sessions"
+            >
+              +
+            </button>
+          )}
         </div>
       }
     />
