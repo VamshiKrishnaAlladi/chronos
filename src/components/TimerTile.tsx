@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import type { DashboardTileConfig, PageTitleTimer, ToolFace, ToolStatus } from '../types'
 import { TOOL_LABELS } from '../types'
-import { formatDuration, formatSplitTime, msToTimeParts } from '../lib/time'
+import { formatDuration, msToTimeParts } from '../lib/time'
 import { stopCompletionTone } from '../lib/notifications'
 import { useCountdown } from '../hooks/useCountdown'
 import { useTimer } from '../hooks/useTimer'
@@ -9,11 +9,13 @@ import { usePomodoro } from '../hooks/usePomodoro'
 import { TileMenu } from './TileMenu'
 import {
   ConfirmDialog,
-  PauseIcon,
-  PlayIcon,
-  PomodoroSessionDots,
+  PomodoroSessionStepper,
+  ProgressRail,
+  ReadoutTapTarget,
   SplitReadout,
+  SplitsPanel,
   TimePartsInput,
+  ToolActionRow,
 } from '.'
 
 export interface TimerTileProps {
@@ -65,10 +67,6 @@ function TileCardLayout({
   const [nameValue, setNameValue] = useState(config.name)
   const [confirmingRemove, setConfirmingRemove] = useState(false)
 
-  useEffect(() => {
-    setNameValue(config.name)
-  }, [config.name])
-
   const isIdle = tool.status === 'idle'
   const isRunning = tool.status === 'running'
   const isPaused = tool.status === 'paused'
@@ -112,13 +110,6 @@ function TileCardLayout({
     else if (isPaused) tool.resume()
   }
 
-  function handleReadoutKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      handleReadoutTap()
-    }
-  }
-
   return (
     <div className="tile-card">
       <div className="tile-header">
@@ -126,6 +117,7 @@ function TileCardLayout({
           <input
             className="tile-name-input"
             value={nameValue}
+            aria-label="Tile name"
             onChange={(e) => setNameValue(e.target.value)}
             onBlur={commitName}
             onKeyDown={(e) => {
@@ -161,70 +153,26 @@ function TileCardLayout({
 
       <div className="tile-content">
         <div className="tile-readout-row">
-          <div
-            className={`tile-readout-wrap${isTappable ? ' tile-readout-tappable' : ''}${tool.readoutBlinking ? ' tile-readout-expired' : ''}`}
-            {...(isTappable ? {
-              onClick: handleReadoutTap,
-              onKeyDown: handleReadoutKey,
-              role: 'button',
-              tabIndex: 0,
-              'aria-label': isRunning ? 'Pause' : 'Resume',
-            } : {})}
+          <ReadoutTapTarget
+            isTappable={isTappable}
+            isRunning={isRunning}
+            expired={tool.readoutBlinking}
+            onTap={handleReadoutTap}
           >
             {readoutContent}
-            {isTappable && (
-              <span className="tile-readout-overlay">
-                {isRunning ? <PauseIcon /> : <PlayIcon />}
-              </span>
-            )}
-          </div>
+          </ReadoutTapTarget>
           {inlineReadout}
         </div>
         {extraReadout}
         <div className="tile-meta">{tool.statusCopy}</div>
-        <div className="tile-progress">
-          <span style={{ width: `${tool.progress}%` }} />
-        </div>
-        <div className="tile-controls">
-          {isIdle ? (
-            <button
-              type="button"
-              className="tile-start-button"
-              onClick={tool.start}
-              disabled={tool.inputInvalid}
-            >
-              Start Timer
-            </button>
-          ) : (
-            <>
-              {tool.split && isRunning ? (
-                <button
-                  type="button"
-                  className="tile-pill-button tile-pill-button-accent"
-                  onClick={tool.split}
-                >
-                  Split
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="tile-pill-button tile-pill-button-accent"
-                  onClick={tool.start}
-                  disabled={tool.inputInvalid}
-                >
-                  {tool.restartLabel}
-                </button>
-              )}
-              <button
-                type="button"
-                className="tile-pill-button"
-                onClick={tool.stop}
-              >
-                Stop
-              </button>
-            </>
-          )}
-        </div>
+        <ProgressRail progress={tool.progress} className="tile-progress" />
+        <ToolActionRow
+          tool={tool}
+          isIdle={isIdle}
+          isRunning={isRunning}
+          startLabel="Start Timer"
+          className="tile-controls"
+        />
         {afterControls}
       </div>
 
@@ -334,26 +282,7 @@ function TimerTileContent({
       }
       afterControls={
         !isIdle ? (
-          <div className="splits-list tile-splits-list">
-            {tmr.state.splits.length > 0 && (
-              <>
-                <div className="splits-header">
-                  <span>#</span>
-                  <span>Split</span>
-                  <span>Cumulative</span>
-                </div>
-                <div className="splits-body" ref={splitBodyRef}>
-                  {tmr.state.splits.map((s, i) => (
-                    <div className="splits-row" key={i}>
-                      <span>{i + 1}</span>
-                      <span>{formatSplitTime(s.splitMs)}</span>
-                      <span>{formatSplitTime(s.cumulativeMs)}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          <SplitsPanel splits={tmr.state.splits} bodyRef={splitBodyRef} className="tile-splits-list" />
         ) : null
       }
     />
@@ -392,19 +321,19 @@ function PomodoroTileContent({
     onTitleTimerChange(config.id, { ms: pomo.state.remainingMs, overrun: false })
   }, [pomo.state.remainingMs, config.id, onTitleTimerChange])
 
-  const incrementSessions = useCallback(() => {
+  function incrementSessions() {
     const n = Number(pomo.sessionsInput)
     if (Number.isInteger(n) && n < 99) {
       pomo.setSessionsInput(String(n + 1))
     }
-  }, [pomo.sessionsInput, pomo.setSessionsInput])
+  }
 
-  const decrementSessions = useCallback(() => {
+  function decrementSessions() {
     const n = Number(pomo.sessionsInput)
     if (Number.isInteger(n) && n > 1) {
       pomo.setSessionsInput(String(n - 1))
     }
-  }, [pomo.sessionsInput, pomo.setSessionsInput])
+  }
 
   const isIdle = pomo.status === 'idle'
 
@@ -460,34 +389,15 @@ function PomodoroTileContent({
         )
       }
       extraReadout={
-        <div className="pomo-session-controls">
-          {isIdle && (
-            <button
-              type="button"
-              className="pomo-session-btn"
-              onClick={decrementSessions}
-              aria-label="Decrease sessions"
-            >
-              −
-            </button>
-          )}
-          <PomodoroSessionDots
-            currentSession={pomo.state.currentSession}
-            sessionsPerCycle={pomo.sessionsPerCycleDisplay}
-            currentPhase={pomo.state.currentPhase}
-            status={pomo.state.status}
-          />
-          {isIdle && (
-            <button
-              type="button"
-              className="pomo-session-btn"
-              onClick={incrementSessions}
-              aria-label="Increase sessions"
-            >
-              +
-            </button>
-          )}
-        </div>
+        <PomodoroSessionStepper
+          isIdle={isIdle}
+          currentSession={pomo.state.currentSession}
+          sessionsPerCycle={pomo.sessionsPerCycleDisplay}
+          currentPhase={pomo.state.currentPhase}
+          status={pomo.state.status}
+          onDecrement={decrementSessions}
+          onIncrement={incrementSessions}
+        />
       }
     />
   )
