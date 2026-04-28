@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 
-const STEPS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-
 interface VolumeControlProps {
   volume: number
   onChange: (volume: number) => void
@@ -32,11 +30,6 @@ export function VolumeControl({ volume, onChange }: VolumeControlProps) {
     }
   }, [open])
 
-  function handleStepClick(step: number) {
-    onChange(step)
-    setOpen(false)
-  }
-
   return (
     <div className="volume-control" ref={ref}>
       <button
@@ -46,28 +39,29 @@ export function VolumeControl({ volume, onChange }: VolumeControlProps) {
         aria-expanded={open}
       >
         <span className="sound-corner-toggle-label">Sound</span>
-        <span className="sound-corner-toggle-state">{volume === 0 ? 'Off' : 'On'}</span>
-        <span className={`sound-corner-toggle-level${volume === 0 ? ' sound-corner-toggle-level-hidden' : ''}`}>
-          [{volume === 0 ? '100' : volume}%]
+        <span className="sound-corner-toggle-value">
+          <span className="sound-corner-toggle-state">{volume === 0 ? 'Off' : 'On'}</span>
+          <span className={`sound-corner-toggle-level${volume === 0 ? ' sound-corner-toggle-level-hidden' : ''}`}>
+            {volume === 0 ? '100' : volume}/100
+          </span>
         </span>
       </button>
 
       {open && (
         <div className="volume-popup">
-          <div className="volume-track">
-            {STEPS.map(step => (
-              <button
-                key={step}
-                type="button"
-                className={`volume-step${step <= volume ? ' volume-step-filled' : ''}${step === volume ? ' volume-step-active' : ''}`}
-                onClick={() => handleStepClick(step)}
-                aria-label={`${step}%`}
-              />
-            ))}
-          </div>
-          <div className="volume-labels">
-            <span>0</span>
-            <span>100</span>
+          <div className="volume-slider-row">
+            <span className="volume-side-label">0</span>
+            <input
+              className="volume-slider"
+              type="range"
+              min="0"
+              max="100"
+              step="10"
+              value={volume}
+              onChange={(event) => onChange(Number(event.currentTarget.value))}
+              aria-label="Sound volume"
+            />
+            <span className="volume-side-label">100</span>
           </div>
         </div>
       )}
