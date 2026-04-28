@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
-import type { DashboardTileConfig, ToolFace, ToolStatus } from '../types'
+import type { DashboardTileConfig, PageTitleTimer, ToolFace, ToolStatus } from '../types'
 import { TOOL_LABELS } from '../types'
 import { formatDuration, formatSplitTime, msToTimeParts } from '../lib/time'
 import { stopCompletionTone } from '../lib/notifications'
@@ -22,7 +22,7 @@ export interface TimerTileProps {
   onRemove: (tileId: string) => void
   onInputsChange: (tileId: string, inputs: Partial<DashboardTileConfig>) => void
   onStatusChange: (tileId: string, status: ToolStatus) => void
-  onRemainingMsChange: (tileId: string, ms: number) => void
+  onTitleTimerChange: (tileId: string, timer: PageTitleTimer) => void
 }
 
 export function TimerTile(props: TimerTileProps) {
@@ -250,7 +250,7 @@ function CountdownTileContent({
   onRemove,
   onInputsChange,
   onStatusChange,
-  onRemainingMsChange,
+  onTitleTimerChange,
 }: TimerTileProps) {
   const cd = useCountdown(config.inputParts)
 
@@ -263,8 +263,11 @@ function CountdownTileContent({
   }, [cd.status, config.id, onStatusChange])
 
   useEffect(() => {
-    onRemainingMsChange(config.id, cd.state.remainingMs)
-  }, [cd.state.remainingMs, config.id, onRemainingMsChange])
+    onTitleTimerChange(config.id, {
+      ms: cd.overrunActive ? cd.overrunMs : cd.state.remainingMs,
+      overrun: cd.overrunActive,
+    })
+  }, [cd.overrunActive, cd.overrunMs, cd.state.remainingMs, config.id, onTitleTimerChange])
 
   const isIdle = cd.status === 'idle'
 
@@ -369,7 +372,7 @@ function PomodoroTileContent({
   onRemove,
   onInputsChange,
   onStatusChange,
-  onRemainingMsChange,
+  onTitleTimerChange,
 }: TimerTileProps) {
   const pomo = usePomodoro(config.inputParts, config.breakInputParts, config.sessionsInput)
 
@@ -386,8 +389,8 @@ function PomodoroTileContent({
   }, [pomo.status, config.id, onStatusChange])
 
   useEffect(() => {
-    onRemainingMsChange(config.id, pomo.state.remainingMs)
-  }, [pomo.state.remainingMs, config.id, onRemainingMsChange])
+    onTitleTimerChange(config.id, { ms: pomo.state.remainingMs, overrun: false })
+  }, [pomo.state.remainingMs, config.id, onTitleTimerChange])
 
   const incrementSessions = useCallback(() => {
     const n = Number(pomo.sessionsInput)

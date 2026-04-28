@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
-import type { AppView, ToolKind, ToolFace } from './types'
+import type { AppView, PageTitleTimer, ToolKind, ToolFace } from './types'
 import { TOOL_LABELS } from './types'
 import { formatDuration, formatSplitTime, msToTimeParts } from './lib/time'
 import { loadStoredPreferences, saveStoredPreferences, saveStoredPreferencesSync } from './lib/preferences'
@@ -31,7 +31,7 @@ function App() {
   const pendingViewSwitchRef = useRef(pendingViewSwitch)
   pendingViewSwitchRef.current = pendingViewSwitch
 
-  const dashboardTimersRef = useRef<number[]>([])
+  const dashboardTimersRef = useRef<PageTitleTimer[]>([])
   const splitBodyRef = useRef<HTMLDivElement>(null)
 
   const countdown = useCountdown(STORED_PREFS.countdownInputParts)
@@ -138,17 +138,19 @@ function App() {
 
   useEffect(() => {
     function updateTitle() {
-      const values: number[] = []
+      const values: PageTitleTimer[] = []
 
       if (appView === 'focus') {
-        if (tool.status === 'running' || tool.status === 'paused') {
+        if (activeTool === 'countdown' && tool.status === 'done') {
+          values.push({ ms: countdown.state.overrunMs, overrun: true })
+        } else if (tool.status === 'running' || tool.status === 'paused') {
           let remaining = 0
           if (activeTool === 'countdown') {
             remaining = countdown.state.remainingMs
           } else if (activeTool === 'pomodoro') {
             remaining = pomo.state.remainingMs
           }
-          if (remaining > 0) values.push(remaining)
+          if (remaining > 0) values.push({ ms: remaining, overrun: false })
         }
       } else {
         values.push(...dashboardTimersRef.current)
@@ -159,19 +161,22 @@ function App() {
         return
       }
 
-      values.sort((a, b) => a - b)
-      document.title = values.map(formatDuration).join(' | ')
+      values.sort((a, b) => a.ms - b.ms)
+      document.title = values
+        .map(({ ms, overrun }) => `${overrun ? '+' : ''}${formatDuration(ms)}`)
+        .join(' | ')
     }
 
     updateTitle()
 
-    if (appView === 'dashboard') {
+    if (appView === 'dashboard' || (appView === 'focus' && activeTool === 'countdown' && tool.status === 'done')) {
       const id = setInterval(updateTitle, 500)
       return () => clearInterval(id)
     }
   }, [
     appView, activeTool, tool.status,
     countdown.state.remainingMs,
+    countdown.state.overrunMs,
     pomo.state.remainingMs,
   ])
 

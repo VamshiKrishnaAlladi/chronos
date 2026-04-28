@@ -71,6 +71,11 @@ export interface StoredPreferences {
   soundMuted: boolean
 }
 
+export interface PageTitleTimer {
+  ms: number
+  overrun: boolean
+}
+
 /**
  * Common surface every tool hook exposes so App can render the hero
  * section, controls, and status without branching on activeTool.

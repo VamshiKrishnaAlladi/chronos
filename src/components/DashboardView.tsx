@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, type RefObject } from 'react'
-import type { DashboardTileConfig, ToolKind, ToolStatus } from '../types'
+import type { DashboardTileConfig, PageTitleTimer, ToolKind, ToolStatus } from '../types'
 import { MAX_DASHBOARD_TILES, TOOL_LABELS } from '../types'
 import { stopCompletionTone } from '../lib/notifications'
 import {
@@ -118,7 +118,7 @@ interface DashboardViewProps {
   pendingLeave: boolean
   onLeaveConfirmed: () => void
   onLeaveCancelled: () => void
-  activeTimersRef: RefObject<number[]>
+  activeTimersRef: RefObject<PageTitleTimer[]>
 }
 
 export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled, activeTimersRef }: DashboardViewProps) {
@@ -130,7 +130,7 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
 
   const tileInputsRef = useRef<Record<string, Partial<DashboardTileConfig>>>({})
   const tileStatusesRef = useRef<Record<string, ToolStatus>>({})
-  const tileRemainingMsRef = useRef<Record<string, number>>({})
+  const tileTitleTimersRef = useRef<Record<string, PageTitleTimer>>({})
 
   const onLeaveConfirmedRef = useRef(onLeaveConfirmed)
   onLeaveConfirmedRef.current = onLeaveConfirmed
@@ -196,12 +196,16 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
   // --- Active timers bookkeeping ---
 
   const recomputeActiveTimers = useCallback(() => {
-    const active: number[] = []
+    const active: PageTitleTimer[] = []
     for (const tile of tilesRef.current) {
       const status = tileStatusesRef.current[tile.id]
-      const ms = tileRemainingMsRef.current[tile.id] ?? 0
-      if ((status === 'running' || status === 'paused') && ms > 0) {
-        active.push(ms)
+      const timer = tileTitleTimersRef.current[tile.id]
+      if (!timer) continue
+
+      const showRemaining = (status === 'running' || status === 'paused') && !timer.overrun && timer.ms > 0
+      const showOverrun = status === 'done' && timer.overrun
+      if (showRemaining || showOverrun) {
+        active.push(timer)
       }
     }
     activeTimersRef.current = active
@@ -217,7 +221,7 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
     if (updates.kind) {
       delete tileInputsRef.current[tileId]
       delete tileStatusesRef.current[tileId]
-      delete tileRemainingMsRef.current[tileId]
+      delete tileTitleTimersRef.current[tileId]
     }
     setTiles(prev =>
       prev.map(tile => {
@@ -235,7 +239,7 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
   const handleRemove = useCallback((tileId: string) => {
     delete tileInputsRef.current[tileId]
     delete tileStatusesRef.current[tileId]
-    delete tileRemainingMsRef.current[tileId]
+    delete tileTitleTimersRef.current[tileId]
     setTiles(prev => prev.filter(t => t.id !== tileId))
     recomputeActiveTimers()
   }, [recomputeActiveTimers])
@@ -253,8 +257,8 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
     recomputeActiveTimers()
   }, [recomputeActiveTimers])
 
-  const handleRemainingMsChange = useCallback((tileId: string, ms: number) => {
-    tileRemainingMsRef.current[tileId] = ms
+  const handleTitleTimerChange = useCallback((tileId: string, timer: PageTitleTimer) => {
+    tileTitleTimersRef.current[tileId] = timer
     recomputeActiveTimers()
   }, [recomputeActiveTimers])
 
@@ -281,7 +285,7 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
               onRemove={handleRemove}
               onInputsChange={handleInputsChange}
               onStatusChange={handleStatusChange}
-              onRemainingMsChange={handleRemainingMsChange}
+              onTitleTimerChange={handleTitleTimerChange}
             />
           ))}
         </div>
