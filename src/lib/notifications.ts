@@ -2,7 +2,12 @@ import alarmSoundUrl from '../assets/alarm.mp3'
 
 let completionAudio: HTMLAudioElement | null = null
 let repeatAlarmActive = false
-let soundMuted = false
+let soundVolume = 30
+
+function applyVolume(audio: HTMLAudioElement): void {
+  audio.volume = soundVolume / 100
+  audio.muted = soundVolume === 0
+}
 
 function getCompletionAudio(): HTMLAudioElement | null {
   if (typeof window === 'undefined' || typeof window.Audio === 'undefined') {
@@ -15,20 +20,20 @@ function getCompletionAudio(): HTMLAudioElement | null {
 
   completionAudio = new window.Audio(alarmSoundUrl)
   completionAudio.preload = 'auto'
-  completionAudio.muted = soundMuted
+  applyVolume(completionAudio)
   return completionAudio
 }
 
-export function setSoundMuted(muted: boolean): void {
-  soundMuted = muted
+export function setSoundVolume(volume: number): void {
+  soundVolume = volume
 
   if (!completionAudio) {
     return
   }
 
-  completionAudio.muted = muted
+  applyVolume(completionAudio)
 
-  if (!muted) {
+  if (volume > 0) {
     return
   }
 
@@ -55,12 +60,12 @@ export async function primeAudio(): Promise<void> {
     return
   } finally {
     audio.currentTime = 0
-    audio.muted = false
+    applyVolume(audio)
   }
 }
 
 export async function startRepeatingCompletionTone(): Promise<void> {
-  if (repeatAlarmActive || soundMuted) {
+  if (repeatAlarmActive || soundVolume === 0) {
     return
   }
 

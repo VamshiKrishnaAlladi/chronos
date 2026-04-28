@@ -4,7 +4,7 @@ import type { AppView, PageTitleTimer, ToolKind, ToolFace } from './types'
 import { TOOL_LABELS } from './types'
 import { formatDuration, formatSplitTime, msToTimeParts } from './lib/time'
 import { loadStoredPreferences, saveStoredPreferences, saveStoredPreferencesSync } from './lib/preferences'
-import { setSoundMuted as configureSoundMuted, stopCompletionTone } from './lib/notifications'
+import { setSoundVolume as configureSoundVolume, stopCompletionTone } from './lib/notifications'
 import { useCountdown } from './hooks/useCountdown'
 import { useTimer } from './hooks/useTimer'
 import { usePomodoro } from './hooks/usePomodoro'
@@ -18,6 +18,7 @@ import {
   TimePartsInput,
 } from './components'
 import { DashboardView } from './components/DashboardView'
+import { VolumeControl } from './components/VolumeControl'
 
 const STORED_PREFS = loadStoredPreferences()
 
@@ -26,7 +27,7 @@ function App() {
   const [activeTool, setActiveTool] = useState<ToolKind>(STORED_PREFS.activeTool)
   const [pendingToolSwitch, setPendingToolSwitch] = useState<ToolKind | null>(null)
   const [pendingViewSwitch, setPendingViewSwitch] = useState<AppView | null>(null)
-  const [soundMuted, setSoundMuted] = useState(STORED_PREFS.soundMuted)
+  const [soundVolume, setSoundVolume] = useState(STORED_PREFS.soundVolume)
 
   const pendingViewSwitchRef = useRef(pendingViewSwitch)
   pendingViewSwitchRef.current = pendingViewSwitch
@@ -89,7 +90,7 @@ function App() {
     pomodoroInputParts: pomo.workInputParts,
     pomoBreakInputParts: pomo.breakInputParts,
     pomoSessionsInput: pomo.sessionsInput,
-    soundMuted,
+    soundVolume,
   })
 
   useEffect(() => {
@@ -100,7 +101,7 @@ function App() {
       pomodoroInputParts: pomo.workInputParts,
       pomoBreakInputParts: pomo.breakInputParts,
       pomoSessionsInput: pomo.sessionsInput,
-      soundMuted,
+      soundVolume,
     }
     prefsRef.current = prefs
     saveStoredPreferences(prefs)
@@ -109,7 +110,7 @@ function App() {
     appView,
     countdown.inputParts,
     pomo.workInputParts, pomo.breakInputParts, pomo.sessionsInput,
-    soundMuted,
+    soundVolume,
   ])
 
   const flushPrefs = useCallback(() => {
@@ -122,8 +123,8 @@ function App() {
   }, [flushPrefs])
 
   useEffect(() => {
-    configureSoundMuted(soundMuted)
-  }, [soundMuted])
+    configureSoundVolume(soundVolume)
+  }, [soundVolume])
 
   useEffect(() => {
     window.addEventListener('pointerdown', stopCompletionTone)
@@ -249,6 +250,7 @@ function App() {
   return (
     <main className={`app-shell${appView === 'dashboard' ? ' app-shell-dashboard' : ''}`}>
       <div className="corner-controls">
+        <VolumeControl volume={soundVolume} onChange={setSoundVolume} />
         <div className="view-toggle" role="tablist" aria-label="View mode">
           <button
             type="button"
@@ -269,15 +271,6 @@ function App() {
             Focus
           </button>
         </div>
-        <button
-          type="button"
-          className={`sound-corner-toggle${!soundMuted ? ' sound-corner-toggle-active' : ''}`}
-          onClick={() => setSoundMuted((v) => !v)}
-          aria-pressed={soundMuted}
-        >
-          <span className="sound-corner-toggle-label">Sound</span>
-          <span className="sound-corner-toggle-state">{soundMuted ? 'Off' : 'On'}</span>
-        </button>
       </div>
 
       {appView === 'dashboard' && <h1 className="brand-corner">Chronos</h1>}

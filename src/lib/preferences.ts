@@ -15,7 +15,7 @@ const DEFAULTS: StoredPreferences = {
   pomodoroInputParts: splitTimeParts(DEFAULT_POMODORO_INPUT),
   pomoBreakInputParts: splitTimeParts(DEFAULT_POMODORO_BREAK_INPUT),
   pomoSessionsInput: DEFAULT_POMODORO_SESSIONS,
-  soundMuted: false,
+  soundVolume: 30,
 }
 
 export function loadStoredPreferences(): StoredPreferences {
@@ -29,7 +29,7 @@ export function loadStoredPreferences(): StoredPreferences {
   }
 
   try {
-    const parsed = JSON.parse(storedValue) as Partial<StoredPreferences>
+    const parsed = JSON.parse(storedValue) as Partial<StoredPreferences> & { soundMuted?: boolean }
 
     const activeTool: ToolKind =
       parsed.activeTool === 'timer'
@@ -52,11 +52,20 @@ export function loadStoredPreferences(): StoredPreferences {
       pomodoroInputParts: parseStoredTimeParts(parsed.pomodoroInputParts, DEFAULT_POMODORO_INPUT),
       pomoBreakInputParts: parseStoredTimeParts(parsed.pomoBreakInputParts, DEFAULT_POMODORO_BREAK_INPUT),
       pomoSessionsInput,
-      soundMuted: parsed.soundMuted === true,
+      soundVolume: parseStoredVolume(parsed.soundVolume, parsed.soundMuted),
     }
   } catch {
     return DEFAULTS
   }
+}
+
+function parseStoredVolume(raw: unknown, legacyMuted?: boolean): number {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const clamped = Math.max(0, Math.min(100, Math.round(raw / 10) * 10))
+    return clamped
+  }
+  if (legacyMuted === true) return 0
+  return DEFAULTS.soundVolume
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null

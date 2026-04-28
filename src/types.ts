@@ -68,7 +68,7 @@ export interface StoredPreferences {
   pomodoroInputParts: TimeParts
   pomoBreakInputParts: TimeParts
   pomoSessionsInput: string
-  soundMuted: boolean
+  soundVolume: number
 }
 
 export interface PageTitleTimer {
