@@ -91,7 +91,7 @@ export function isStoredTimeParts(value: unknown): value is TimeParts {
 }
 
 export function parseStoredTimeParts(value: unknown, fallback: string): TimeParts {
-  if (!isStoredTimeParts(value)) {
+  if (!isStoredTimeParts(value) || !isValidTimeParts(value)) {
     return splitTimeParts(fallback)
   }
 

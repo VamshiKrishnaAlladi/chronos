@@ -1,11 +1,9 @@
 import { useRef, useState, type RefObject } from 'react'
 import type {
-  PomodoroPhase,
   PomodoroState,
   TimeParts,
   TimePartKey,
   ToolFace,
-  ToolStatus,
 } from '../types'
 import {
   formatClockTime,
@@ -19,42 +17,17 @@ import {
   DEFAULT_POMODORO_BREAK_INPUT,
   DEFAULT_POMODORO_INPUT,
   DEFAULT_POMODORO_SESSIONS,
-} from '../lib/preferences'
+} from '../lib/defaults'
 import { primeAudio, stopCompletionTone } from '../lib/notifications'
 import { useTickInterval } from './useTickInterval'
 import { useAlertEffect } from './useAlertEffect'
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-export function getNextPomodoroPhase(state: PomodoroState): {
-  nextPhase: PomodoroPhase
-  nextSession: number
-} {
-  if (state.currentPhase === 'work') {
-    return { nextPhase: 'break', nextSession: state.currentSession }
-  }
-  return { nextPhase: 'work', nextSession: state.currentSession + 1 }
-}
-
-export function pomodoroPhaseLabel(state: PomodoroState): string {
-  if (state.currentPhase === 'work') {
-    return `Work ${state.currentSession}/${state.sessionsPerCycle}`
-  }
-  return 'Break'
-}
-
-export function getCompletedPomodoroSessions(
-  currentSession: number,
-  currentPhase: PomodoroPhase,
-  status: ToolStatus,
-): number {
-  if (currentPhase === 'work') {
-    return status === 'done' ? currentSession : currentSession - 1
-  }
-  return currentSession
-}
+import {
+  createPomodoroState,
+  getCompletedPomodoroSessions,
+  getNextPomodoroPhase,
+  pomodoroPhaseLabel,
+  reducePomodoro,
+} from '../timers/pomodoroReducer'
 
 // ---------------------------------------------------------------------------
 // Return type
@@ -109,18 +82,11 @@ export function usePomodoro(
     const workMs = timePartsToMs(normalizeTimeParts(initialWorkParts))
     const breakMs = timePartsToMs(normalizeTimeParts(initialBreakParts))
     const sessions = Number(initialSessionsInput)
-    return {
+    return createPomodoroState({
       workDurationMs: workMs || parseHmsInput(DEFAULT_POMODORO_INPUT),
       breakMs: breakMs || parseHmsInput(DEFAULT_POMODORO_BREAK_INPUT),
       sessionsPerCycle: sessions > 0 ? sessions : Number(DEFAULT_POMODORO_SESSIONS),
-      currentPhase: 'work',
-      currentSession: 1,
-      remainingMs: workMs || parseHmsInput(DEFAULT_POMODORO_INPUT),
-      endsAt: null,
-      status: 'idle',
-      completedAt: null,
-      alertedAt: null,
-    }
+    })
   })
 
   // --- Derived values ---
@@ -197,27 +163,7 @@ export function usePomodoro(
   useTickInterval(
     state.status === 'running' && state.endsAt !== null,
     (now) => {
-      setState((prev) => {
-        if (prev.status !== 'running' || !prev.endsAt) return prev
-
-        const rawRemainingMs = Math.max(prev.endsAt - now, 0)
-        const remainingMs =
-          rawRemainingMs === 0 ? 0 : Math.ceil(rawRemainingMs / 1000) * 1000
-
-        if (remainingMs === 0) {
-          return {
-            ...prev,
-            remainingMs: 0,
-            endsAt: null,
-            status: 'done' as const,
-            completedAt: now,
-            alertedAt: null,
-          }
-        }
-
-        if (remainingMs === prev.remainingMs) return prev
-        return { ...prev, remainingMs }
-      })
+      setState((prev) => reducePomodoro(prev, { type: 'tick', now }))
     },
     [state.endsAt],
   )
@@ -229,11 +175,7 @@ export function usePomodoro(
       state.completedAt !== null &&
       state.alertedAt !== state.completedAt,
     () => {
-      setState((prev) =>
-        prev.completedAt === state.completedAt
-          ? { ...prev, alertedAt: state.completedAt }
-          : prev,
-      )
+      setState((prev) => reducePomodoro(prev, { type: 'markAlerted' }))
     },
     [state.completedAt, state.alertedAt],
   )
@@ -285,73 +227,22 @@ export function usePomodoro(
     await primeAudio()
     const actionedAt = Date.now()
 
-    setState((prev) => {
-      // Mid-cycle done: advance to next phase
-      if (
-        prev.status === 'done' &&
-        !(prev.currentPhase === 'work' && prev.currentSession >= prev.sessionsPerCycle)
-      ) {
-        const { nextPhase, nextSession } = getNextPomodoroPhase(prev)
-        const phaseDurationMs =
-          nextPhase === 'work' ? prev.workDurationMs : prev.breakMs
-
-        return {
-          ...prev,
-          currentPhase: nextPhase,
-          currentSession: nextSession,
-          remainingMs: phaseDurationMs,
-          endsAt: actionedAt + phaseDurationMs,
-          status: 'running' as const,
-          completedAt: null,
-          alertedAt: null,
-        }
-      }
-
-      // Running/paused: restart current phase only
-      if (prev.status === 'running' || prev.status === 'paused') {
-        const phaseDurationMs =
-          prev.currentPhase === 'work' ? prev.workDurationMs : prev.breakMs
-
-        return {
-          ...prev,
-          remainingMs: phaseDurationMs,
-          endsAt: actionedAt + phaseDurationMs,
-          status: 'running' as const,
-          completedAt: null,
-          alertedAt: null,
-        }
-      }
-
-      // Idle or cycle-complete done: fresh start from work session 1
-      return {
+    setState((prev) => reducePomodoro(prev, {
+      type: 'start',
+      config: {
         workDurationMs: nextWorkMs,
         breakMs: nextBreakMs,
         sessionsPerCycle: nextSessions,
-        currentPhase: 'work' as const,
-        currentSession: 1,
-        remainingMs: nextWorkMs,
-        endsAt: actionedAt + nextWorkMs,
-        status: 'running' as const,
-        completedAt: null,
-        alertedAt: null,
-      }
-    })
+      },
+      now: actionedAt,
+    }))
   }
 
   function pause() {
     stopCompletionTone()
     const actionedAt = Date.now()
 
-    setState((prev) => {
-      if (prev.status !== 'running' || !prev.endsAt) return prev
-
-      return {
-        ...prev,
-        remainingMs: Math.ceil(Math.max(prev.endsAt - actionedAt, 0) / 1000) * 1000,
-        endsAt: null,
-        status: 'paused' as const,
-      }
-    })
+    setState((prev) => reducePomodoro(prev, { type: 'pause', now: actionedAt }))
   }
 
   async function resume() {
@@ -359,14 +250,7 @@ export function usePomodoro(
     await primeAudio()
     const actionedAt = Date.now()
 
-    setState((prev) => {
-      if (prev.status !== 'paused') return prev
-      return {
-        ...prev,
-        endsAt: actionedAt + prev.remainingMs,
-        status: 'running' as const,
-      }
-    })
+    setState((prev) => reducePomodoro(prev, { type: 'resume', now: actionedAt }))
   }
 
   function stop() {
@@ -376,18 +260,14 @@ export function usePomodoro(
     const brkMs = breakInvalid ? state.breakMs : breakParsedMs
     const sessions = sessionsInvalid ? state.sessionsPerCycle : sessionsParsed
 
-    setState({
-      workDurationMs: workMs,
-      breakMs: brkMs,
-      sessionsPerCycle: sessions,
-      currentPhase: 'work',
-      currentSession: 1,
-      remainingMs: workMs,
-      endsAt: null,
-      status: 'idle',
-      completedAt: null,
-      alertedAt: null,
-    })
+    setState((prev) => reducePomodoro(prev, {
+      type: 'stop',
+      config: {
+        workDurationMs: workMs,
+        breakMs: brkMs,
+        sessionsPerCycle: sessions,
+      },
+    }))
   }
 
   return {

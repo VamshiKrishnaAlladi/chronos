@@ -10,6 +10,7 @@ import {
 import { primeAudio, stopCompletionTone } from '../lib/notifications'
 import { useTickInterval } from './useTickInterval'
 import { useAlertEffect } from './useAlertEffect'
+import { createCountdownState, reduceCountdown } from '../timers/countdownReducer'
 
 export interface UseCountdownReturn extends ToolFace {
   state: CountdownState
@@ -24,21 +25,10 @@ export interface UseCountdownReturn extends ToolFace {
 export function useCountdown(initialInputParts: TimeParts): UseCountdownReturn {
   const [state, setState] = useState<CountdownState>(() => {
     const ms = timePartsToMs(normalizeTimeParts(initialInputParts))
-    return {
-      durationMs: ms,
-      remainingMs: ms,
-      overrunMs: 0,
-      endsAt: null,
-      status: 'idle',
-      completedAt: null,
-      alertedAt: null,
-    }
+    return createCountdownState(ms)
   })
 
   const [inputParts, setInputParts] = useState<TimeParts>(initialInputParts)
-
-  const inputPartsRef = useRef(inputParts)
-  inputPartsRef.current = inputParts
 
   const hoursRef = useRef<HTMLInputElement>(null)
   const minutesRef = useRef<HTMLInputElement>(null)
@@ -52,27 +42,7 @@ export function useCountdown(initialInputParts: TimeParts): UseCountdownReturn {
   // --- Tick: decrement remainingMs toward 0, transition to 'done' ---
 
   const onCountdownTick = useCallback((now: number) => {
-    setState((prev) => {
-      if (prev.status !== 'running' || !prev.endsAt) return prev
-
-      const rawRemaining = Math.max(prev.endsAt - now, 0)
-      const remainingMs = rawRemaining === 0 ? 0 : Math.ceil(rawRemaining / 1000) * 1000
-
-      if (remainingMs === 0) {
-        return {
-          ...prev,
-          remainingMs: 0,
-          overrunMs: 0,
-          endsAt: null,
-          status: 'done',
-          completedAt: now,
-          alertedAt: null,
-        }
-      }
-
-      if (remainingMs === prev.remainingMs) return prev
-      return { ...prev, remainingMs }
-    })
+    setState((prev) => reduceCountdown(prev, { type: 'tick', now }))
   }, [])
 
   useTickInterval(state.status === 'running', onCountdownTick, [])
@@ -80,13 +50,7 @@ export function useCountdown(initialInputParts: TimeParts): UseCountdownReturn {
   // --- Tick: increment overrunMs after completion ---
 
   const onOverrunTick = useCallback((now: number) => {
-    setState((prev) => {
-      if (prev.status !== 'done' || prev.completedAt === null) return prev
-
-      const overrunMs = Math.max(Math.floor((now - prev.completedAt) / 1000), 0) * 1000
-      if (overrunMs === prev.overrunMs) return prev
-      return { ...prev, overrunMs }
-    })
+    setState((prev) => reduceCountdown(prev, { type: 'tickOverrun', now }))
   }, [])
 
   useTickInterval(state.status === 'done', onOverrunTick, [])
@@ -100,7 +64,7 @@ export function useCountdown(initialInputParts: TimeParts): UseCountdownReturn {
     state.alertedAt !== state.completedAt
 
   const onAlerted = useCallback(() => {
-    setState((prev) => ({ ...prev, alertedAt: prev.completedAt }))
+    setState((prev) => reduceCountdown(prev, { type: 'markAlerted' }))
   }, [])
 
   useAlertEffect(shouldAlert, onAlerted, [])
@@ -124,7 +88,7 @@ export function useCountdown(initialInputParts: TimeParts): UseCountdownReturn {
   const start = useCallback(() => {
     stopCompletionTone()
 
-    const nextParts = normalizeTimeParts(inputPartsRef.current)
+    const nextParts = normalizeTimeParts(inputParts)
     setInputParts(nextParts)
 
     const nextDurationMs = timePartsToMs(nextParts)
@@ -133,31 +97,15 @@ export function useCountdown(initialInputParts: TimeParts): UseCountdownReturn {
     void (async () => {
       await primeAudio()
       const now = Date.now()
-      setState({
-        durationMs: nextDurationMs,
-        remainingMs: nextDurationMs,
-        overrunMs: 0,
-        endsAt: now + nextDurationMs,
-        status: 'running',
-        completedAt: null,
-        alertedAt: null,
-      })
+      setState((prev) => reduceCountdown(prev, { type: 'start', durationMs: nextDurationMs, now }))
     })()
-  }, [])
+  }, [inputParts])
 
   const pause = useCallback(() => {
     stopCompletionTone()
     const now = Date.now()
 
-    setState((prev) => {
-      if (prev.status !== 'running' || !prev.endsAt) return prev
-      return {
-        ...prev,
-        remainingMs: Math.ceil(Math.max(prev.endsAt - now, 0) / 1000) * 1000,
-        endsAt: null,
-        status: 'paused',
-      }
-    })
+    setState((prev) => reduceCountdown(prev, { type: 'pause', now }))
   }, [])
 
   const resume = useCallback(() => {
@@ -168,11 +116,7 @@ export function useCountdown(initialInputParts: TimeParts): UseCountdownReturn {
       const now = Date.now()
       setState((prev) => {
         if (prev.status !== 'paused') return prev
-        return {
-          ...prev,
-          endsAt: now + prev.remainingMs,
-          status: 'running',
-        }
+        return reduceCountdown(prev, { type: 'resume', now })
       })
     })()
   }, [])
@@ -180,23 +124,12 @@ export function useCountdown(initialInputParts: TimeParts): UseCountdownReturn {
   const stop = useCallback(() => {
     stopCompletionTone()
 
-    const currentParts = inputPartsRef.current
+    const currentParts = inputParts
     const ms = timePartsToMs(normalizeTimeParts(currentParts))
     const invalid = !isValidTimeParts(currentParts) || ms === 0
 
-    setState((prev) => {
-      const resetMs = invalid ? prev.durationMs : ms
-      return {
-        durationMs: resetMs,
-        remainingMs: resetMs,
-        overrunMs: 0,
-        endsAt: null,
-        status: 'idle',
-        completedAt: null,
-        alertedAt: null,
-      }
-    })
-  }, [])
+    setState((prev) => reduceCountdown(prev, { type: 'stop', resetMs: invalid ? prev.durationMs : ms }))
+  }, [inputParts])
 
   const setInputPart = useCallback((part: TimePartKey, value: string) => {
     setInputParts((prev) => ({ ...prev, [part]: value }))

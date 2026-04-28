@@ -3,10 +3,11 @@ import { TOOL_LABELS } from '../types'
 import { splitTimeParts, parseStoredTimeParts } from './time'
 import {
   DEFAULT_COUNTDOWN_INPUT,
-  DEFAULT_POMODORO_INPUT,
   DEFAULT_POMODORO_BREAK_INPUT,
+  DEFAULT_POMODORO_INPUT,
   DEFAULT_POMODORO_SESSIONS,
-} from './preferences'
+} from './defaults'
+import { createLocalPreferenceStore } from './localPreferenceStore'
 
 const DASHBOARD_STORAGE_KEY = 'chronos-dashboard-v1'
 
@@ -14,70 +15,61 @@ export interface DashboardPreferences {
   tiles: DashboardTileConfig[]
 }
 
-export function loadDashboardPreferences(): DashboardPreferences {
-  if (typeof window === 'undefined') return { tiles: [] }
+const DEFAULTS: DashboardPreferences = { tiles: [] }
 
-  const stored = window.localStorage.getItem(DASHBOARD_STORAGE_KEY)
-  if (!stored) return { tiles: [] }
+export function parseDashboardPreferences(value: unknown): DashboardPreferences {
+  const parsed = value as { tiles?: unknown }
+  if (!Array.isArray(parsed.tiles)) return DEFAULTS
 
-  try {
-    const parsed = JSON.parse(stored)
-    if (!Array.isArray(parsed.tiles)) return { tiles: [] }
+  const validKinds = ['countdown', 'timer', 'pomodoro']
 
-    const validKinds = ['countdown', 'timer', 'pomodoro']
+  const tiles: DashboardTileConfig[] = parsed.tiles
+    .slice(0, 4)
+    .filter((t: unknown): t is Record<string, unknown> => {
+      if (!t || typeof t !== 'object') return false
+      const obj = t as Record<string, unknown>
+      return typeof obj.id === 'string' && validKinds.includes(obj.kind as string)
+    })
+    .map((t: Record<string, unknown>) => {
+      const kind = t.kind as ToolKind
+      const defaultInput = kind === 'pomodoro'
+        ? DEFAULT_POMODORO_INPUT
+        : kind === 'timer'
+          ? '00:00:00'
+          : DEFAULT_COUNTDOWN_INPUT
 
-    const tiles: DashboardTileConfig[] = parsed.tiles
-      .slice(0, 4)
-      .filter((t: unknown): t is Record<string, unknown> => {
-        if (!t || typeof t !== 'object') return false
-        const obj = t as Record<string, unknown>
-        return typeof obj.id === 'string' && validKinds.includes(obj.kind as string)
-      })
-      .map((t: Record<string, unknown>) => {
-        const kind = t.kind as ToolKind
-        const defaultInput = kind === 'pomodoro'
-          ? DEFAULT_POMODORO_INPUT
-          : kind === 'timer'
-            ? '00:00:00'
-            : DEFAULT_COUNTDOWN_INPUT
+      return {
+        id: t.id as string,
+        kind,
+        name: typeof t.name === 'string' ? t.name : TOOL_LABELS[kind],
+        inputParts: parseStoredTimeParts(t.inputParts, defaultInput),
+        breakInputParts: parseStoredTimeParts(t.breakInputParts, DEFAULT_POMODORO_BREAK_INPUT),
+        sessionsInput:
+          typeof t.sessionsInput === 'string' && /^\d{1,2}$/.test(t.sessionsInput)
+            ? t.sessionsInput
+            : DEFAULT_POMODORO_SESSIONS,
+      }
+    })
 
-        return {
-          id: t.id as string,
-          kind,
-          name: typeof t.name === 'string' ? t.name : TOOL_LABELS[kind],
-          inputParts: parseStoredTimeParts(t.inputParts, defaultInput),
-          breakInputParts: parseStoredTimeParts(t.breakInputParts, DEFAULT_POMODORO_BREAK_INPUT),
-          sessionsInput:
-            typeof t.sessionsInput === 'string' && /^\d{1,2}$/.test(t.sessionsInput)
-              ? t.sessionsInput
-              : DEFAULT_POMODORO_SESSIONS,
-        }
-      })
-
-    return { tiles }
-  } catch {
-    return { tiles: [] }
-  }
+  return { tiles }
 }
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null
+const store = createLocalPreferenceStore({
+  key: DASHBOARD_STORAGE_KEY,
+  defaults: DEFAULTS,
+  parse: parseDashboardPreferences,
+})
+
+export function loadDashboardPreferences(): DashboardPreferences {
+  return store.load()
+}
 
 export function saveDashboardPreferences(prefs: DashboardPreferences): void {
-  if (typeof window === 'undefined') return
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    window.localStorage.setItem(DASHBOARD_STORAGE_KEY, JSON.stringify(prefs))
-    saveTimer = null
-  }, 400)
+  store.save(prefs)
 }
 
 export function saveDashboardPreferencesSync(prefs: DashboardPreferences): void {
-  if (typeof window === 'undefined') return
-  if (saveTimer) {
-    clearTimeout(saveTimer)
-    saveTimer = null
-  }
-  window.localStorage.setItem(DASHBOARD_STORAGE_KEY, JSON.stringify(prefs))
+  store.saveSync(prefs)
 }
 
 let tileCounter = 0
