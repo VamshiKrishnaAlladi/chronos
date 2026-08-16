@@ -29,12 +29,29 @@ export function ToolActionRow({
       ) : (
         <>
           {tool.split && isRunning ? (
+            <>
+              <button
+                type="button"
+                className="tile-pill-button tile-pill-button-accent"
+                onClick={tool.split}
+              >
+                Split
+              </button>
+              <button
+                type="button"
+                className="tile-pill-button"
+                onClick={tool.pause}
+              >
+                Pause
+              </button>
+            </>
+          ) : tool.split && tool.status === 'paused' ? (
             <button
               type="button"
               className="tile-pill-button tile-pill-button-accent"
-              onClick={tool.split}
+              onClick={tool.resume}
             >
-              Split
+              Resume
             </button>
           ) : (
             <button

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { startRepeatingCompletionTone } from '../lib/notifications'
+import { showHiddenCompletionNotification } from '../lib/completionNotifications'
 
 /**
  * Triggers the completion tone when `shouldAlert` becomes true,
@@ -16,6 +17,7 @@ export function useAlertEffect(
     let cancelled = false
 
     void (async () => {
+      void showHiddenCompletionNotification()
       await startRepeatingCompletionTone()
       if (!cancelled) {
         onAlerted()

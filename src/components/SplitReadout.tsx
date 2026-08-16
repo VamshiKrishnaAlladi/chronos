@@ -9,7 +9,7 @@ export function SplitReadout({ ms }: SplitReadoutProps) {
   const millis = String(total % 1000).padStart(3, '0')
 
   return (
-    <div className="tile-readout-input">
+    <div className="tile-readout-input split-readout" aria-hidden="true">
       <label className="inline-input">
         <span>MM:SS.mmm</span>
         <div className="time-input-group">

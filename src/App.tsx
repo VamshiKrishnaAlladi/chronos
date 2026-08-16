@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 import './styles/index.css'
 import type { PageTitleTimer, ToolKind } from './types'
 import { TOOL_LABELS } from './types'
-import { msToTimeParts } from './lib/time'
+import { formatDurationForSpeech, msToTimeParts, timePartsToMs } from './lib/time'
 import { loadStoredPreferences } from './lib/preferences'
 import { stopCompletionTone } from './lib/notifications'
 import { useCountdown } from './hooks/useCountdown'
@@ -19,15 +19,21 @@ import {
   SplitReadout,
   SplitsPanel,
   TimePartsInput,
+  TimerStatusAnnouncement,
   ToolActionRow,
+  RuntimeFeaturesControl,
 } from './components'
 import { DashboardView } from './components/DashboardView'
 import { VolumeControl } from './components/VolumeControl'
+import { useNotificationPermission } from './hooks/useNotificationPermission'
+import { useWakeLock } from './hooks/useWakeLock'
+import { PwaUpdatePrompt } from './components/PwaUpdatePrompt'
 
 const STORED_PREFS = loadStoredPreferences()
 
 function App() {
   const [dashboardTitleTimers, setDashboardTitleTimers] = useState<PageTitleTimer[]>([])
+  const [dashboardTimerRunning, setDashboardTimerRunning] = useState(false)
   const splitBodyRef = useRef<HTMLDivElement>(null)
 
   const countdown = useCountdown(STORED_PREFS.countdownInputParts)
@@ -45,6 +51,8 @@ function App() {
     pendingViewSwitch,
     soundVolume,
     setSoundVolume,
+    keepAwake,
+    setKeepAwake,
     tool,
     toolLabel,
     isIdle,
@@ -64,6 +72,12 @@ function App() {
     countdown,
     timer,
     pomo,
+  })
+
+  const notificationPermission = useNotificationPermission()
+  const wakeLock = useWakeLock({
+    enabled: keepAwake,
+    active: appView === 'focus' ? isRunning : dashboardTimerRunning,
   })
 
   useEffect(() => {
@@ -131,30 +145,42 @@ function App() {
   // --- Render ---
 
   return (
-    <main className={`app-shell${appView === 'dashboard' ? ' app-shell-dashboard' : ''}`}>
-      <div className="corner-controls">
-        <VolumeControl volume={soundVolume} onChange={setSoundVolume} />
-        <div className="view-toggle" role="group" aria-label="View mode">
-          <button
-            type="button"
-            aria-pressed={appView === 'dashboard'}
-            className={`view-toggle-btn${appView === 'dashboard' ? ' view-toggle-btn-active' : ''}`}
-            onClick={() => requestViewSwitch('dashboard')}
-          >
-            Dashboard
-          </button>
-          <button
-            type="button"
-            aria-pressed={appView === 'focus'}
-            className={`view-toggle-btn${appView === 'focus' ? ' view-toggle-btn-active' : ''}`}
-            onClick={() => requestViewSwitch('focus')}
-          >
-            Focus
-          </button>
+    <>
+      <main className={`app-shell${appView === 'dashboard' ? ' app-shell-dashboard' : ''}`}>
+      <div className={`app-chrome${appView === 'dashboard' ? ' app-chrome-dashboard' : ''}`}>
+        {appView === 'dashboard' && <h1 className="brand-corner">Chronos</h1>}
+
+        <div className="corner-controls">
+          <VolumeControl volume={soundVolume} onChange={setSoundVolume} />
+          <RuntimeFeaturesControl
+            notificationPermission={notificationPermission.permission}
+            notificationRequesting={notificationPermission.requesting}
+            notificationRequestFailed={notificationPermission.requestFailed}
+            onRequestNotificationPermission={() => void notificationPermission.requestPermission()}
+            keepAwake={keepAwake}
+            onKeepAwakeChange={setKeepAwake}
+            wakeLockStatus={wakeLock.status}
+          />
+          <div className="view-toggle" role="group" aria-label="View mode">
+            <button
+              type="button"
+              aria-pressed={appView === 'dashboard'}
+              className={`view-toggle-btn${appView === 'dashboard' ? ' view-toggle-btn-active' : ''}`}
+              onClick={() => requestViewSwitch('dashboard')}
+            >
+              Dashboard
+            </button>
+            <button
+              type="button"
+              aria-pressed={appView === 'focus'}
+              className={`view-toggle-btn${appView === 'focus' ? ' view-toggle-btn-active' : ''}`}
+              onClick={() => requestViewSwitch('focus')}
+            >
+              Focus
+            </button>
+          </div>
         </div>
       </div>
-
-      {appView === 'dashboard' && <h1 className="brand-corner">Chronos</h1>}
 
       <div className={appView === 'focus' ? 'app-center' : 'app-center-wide'}>
         {appView === 'focus' && (
@@ -173,6 +199,8 @@ function App() {
                   isTappable={isTappable}
                   isRunning={isRunning}
                   expired={tool.readoutBlinking}
+                  readoutLabel="Countdown"
+                  readoutValue={formatDurationForSpeech(countdown.displayMs)}
                   onTap={handleReadoutTap}
                 >
                   <div className="tile-readout-input hero-readout-input">
@@ -196,6 +224,10 @@ function App() {
                   isTappable={isTappable}
                   isRunning={isRunning}
                   expired={tool.readoutBlinking}
+                  readoutLabel={isIdle ? 'Pomodoro settings' : `${pomo.state.currentPhase} time`}
+                  readoutValue={isIdle
+                    ? `Work ${formatDurationForSpeech(timePartsToMs(pomo.workInputParts))}; break ${formatDurationForSpeech(timePartsToMs(pomo.breakInputParts))}`
+                    : formatDurationForSpeech(pomo.displayMs)}
                   onTap={handleReadoutTap}
                 >
                   {isIdle ? (
@@ -256,6 +288,8 @@ function App() {
               <ReadoutTapTarget
                 isTappable={isTappable}
                 isRunning={isRunning}
+                readoutLabel="Split timer"
+                readoutValue={formatDurationForSpeech(timer.displayMs, true)}
                 onTap={handleReadoutTap}
               >
                 <div className="hero-readout-input">
@@ -265,8 +299,18 @@ function App() {
             )}
 
             <div className="hero-meta">{tool.statusCopy}</div>
+            <TimerStatusAnnouncement
+              label={toolLabel}
+              status={tool.status}
+              statusCopy={tool.statusCopy}
+            />
 
-            <ProgressRail progress={tool.progress} className="hero-progress" />
+            <ProgressRail
+              progress={tool.progress}
+              className="hero-progress"
+              label={`${toolLabel} progress`}
+              decorative={activeTool === 'timer'}
+            />
 
             <ToolActionRow
               tool={tool}
@@ -286,6 +330,7 @@ function App() {
             onLeaveConfirmed={handleDashboardLeaveConfirmed}
             onLeaveCancelled={handleDashboardLeaveCancelled}
             onTitleTimersChange={setDashboardTitleTimers}
+            onRunningChange={setDashboardTimerRunning}
           />
         )}
       </div>
@@ -323,7 +368,9 @@ function App() {
           onCancel={cancelFocusViewSwitch}
         />
       )}
-    </main>
+      </main>
+      <PwaUpdatePrompt />
+    </>
   )
 }
 

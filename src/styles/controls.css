@@ -29,7 +29,7 @@
 }
 
 .sound-corner-toggle-state {
-  color: #6d7682;
+  color: var(--text-muted);
   font-weight: 700;
   display: inline-block;
 }
@@ -39,7 +39,9 @@
 }
 
 .sound-corner-toggle:focus-visible {
-  outline: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 .sound-corner-toggle:focus-visible .sound-corner-toggle-label,
@@ -73,6 +75,241 @@
 
 .volume-control {
   position: relative;
+}
+
+.runtime-features-control {
+  position: relative;
+}
+
+.runtime-features-toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.runtime-features-toggle-state {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.runtime-features-toggle-active .runtime-features-toggle-state {
+  color: var(--accent);
+}
+
+.runtime-features-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.runtime-features-popup {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.9rem;
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0e1219;
+  text-align: left;
+}
+
+.runtime-feature-section {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.runtime-feature-section + .runtime-feature-section {
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.runtime-feature-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.runtime-feature-heading-row h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 0.76rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.runtime-feature-status {
+  color: var(--accent);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.runtime-feature-section p,
+.runtime-feature-limit,
+.runtime-feature-error {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.runtime-feature-action {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.runtime-feature-action:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.runtime-feature-action:focus-visible,
+.runtime-feature-switch input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.runtime-feature-switch {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--text);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.runtime-feature-switch input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.runtime-feature-switch:has(input:disabled) {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.runtime-features-popup .runtime-feature-error {
+  color: #fca5a5;
+}
+
+.runtime-feature-limit {
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.pwa-update-prompt {
+  position: fixed;
+  right: clamp(1rem, 3vw, 1.75rem);
+  bottom: clamp(1rem, 3vw, 1.75rem);
+  z-index: 40;
+  display: grid;
+  gap: 0.85rem;
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid rgba(146, 246, 213, 0.34);
+  border-radius: 10px;
+  background: #0e1219;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.4);
+}
+
+.pwa-update-title,
+.pwa-update-copy,
+.pwa-update-error {
+  margin: 0;
+}
+
+.pwa-update-title {
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pwa-update-copy,
+.pwa-update-error {
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.pwa-update-error {
+  color: #fca5a5;
+}
+
+.pwa-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.pwa-update-button {
+  min-height: 44px;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.pwa-update-button-secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+.pwa-update-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.pwa-update-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .pwa-update-prompt {
+    right: 1rem;
+    bottom: 4.75rem;
+  }
 }
 
 .volume-popup {

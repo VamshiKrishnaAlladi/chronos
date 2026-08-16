@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import type { DashboardTileConfig, PageTitleTimer, ToolFace, ToolStatus } from '../types'
 import { TOOL_LABELS } from '../types'
-import { formatDuration, msToTimeParts } from '../lib/time'
+import { formatDuration, formatDurationForSpeech, msToTimeParts, timePartsToMs } from '../lib/time'
 import { stopCompletionTone } from '../lib/notifications'
+import { dashboardRuntimeSessionId } from '../lib/runtimeSessions'
 import { useCountdown } from '../hooks/useCountdown'
 import { useTimer } from '../hooks/useTimer'
 import { usePomodoro } from '../hooks/usePomodoro'
@@ -15,6 +16,7 @@ import {
   SplitReadout,
   SplitsPanel,
   TimePartsInput,
+  TimerStatusAnnouncement,
   ToolActionRow,
 } from '.'
 
@@ -48,6 +50,8 @@ interface TileCardLayoutProps {
   onConfigChange: (tileId: string, updates: Partial<DashboardTileConfig>) => void
   onRemove: (tileId: string) => void
   readoutContent: ReactNode
+  readoutLabel: string
+  readoutValue: string
   inlineReadout?: ReactNode
   extraReadout?: ReactNode
   afterControls?: ReactNode
@@ -59,6 +63,8 @@ function TileCardLayout({
   onConfigChange,
   onRemove,
   readoutContent,
+  readoutLabel,
+  readoutValue,
   inlineReadout,
   extraReadout,
   afterControls,
@@ -157,6 +163,8 @@ function TileCardLayout({
             isTappable={isTappable}
             isRunning={isRunning}
             expired={tool.readoutBlinking}
+            readoutLabel={readoutLabel}
+            readoutValue={readoutValue}
             onTap={handleReadoutTap}
           >
             {readoutContent}
@@ -165,7 +173,17 @@ function TileCardLayout({
         </div>
         {extraReadout}
         <div className="tile-meta">{tool.statusCopy}</div>
-        <ProgressRail progress={tool.progress} className="tile-progress" />
+        <TimerStatusAnnouncement
+          label={config.name}
+          status={tool.status}
+          statusCopy={tool.statusCopy}
+        />
+        <ProgressRail
+          progress={tool.progress}
+          className="tile-progress"
+          label={`${config.name} progress`}
+          decorative={config.kind === 'timer'}
+        />
         <ToolActionRow
           tool={tool}
           isIdle={isIdle}
@@ -200,7 +218,7 @@ function CountdownTileContent({
   onStatusChange,
   onTitleTimerChange,
 }: TimerTileProps) {
-  const cd = useCountdown(config.inputParts)
+  const cd = useCountdown(config.inputParts, dashboardRuntimeSessionId(config.id))
 
   useEffect(() => {
     onInputsChange(config.id, { inputParts: cd.inputParts })
@@ -225,6 +243,8 @@ function CountdownTileContent({
       tool={cd}
       onConfigChange={onConfigChange}
       onRemove={onRemove}
+      readoutLabel={config.name}
+      readoutValue={formatDurationForSpeech(cd.displayMs)}
       readoutContent={
         <div className="tile-readout-input">
           <TimePartsInput
@@ -258,7 +278,7 @@ function TimerTileContent({
   onRemove,
   onStatusChange,
 }: TimerTileProps) {
-  const tmr = useTimer()
+  const tmr = useTimer(dashboardRuntimeSessionId(config.id))
   const splitBodyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -277,6 +297,8 @@ function TimerTileContent({
       tool={tmr}
       onConfigChange={onConfigChange}
       onRemove={onRemove}
+      readoutLabel={config.name}
+      readoutValue={formatDurationForSpeech(tmr.displayMs, true)}
       readoutContent={
         <SplitReadout ms={tmr.displayMs} />
       }
@@ -303,7 +325,12 @@ function PomodoroTileContent({
   onStatusChange,
   onTitleTimerChange,
 }: TimerTileProps) {
-  const pomo = usePomodoro(config.inputParts, config.breakInputParts, config.sessionsInput)
+  const pomo = usePomodoro(
+    config.inputParts,
+    config.breakInputParts,
+    config.sessionsInput,
+    dashboardRuntimeSessionId(config.id),
+  )
 
   useEffect(() => {
     onInputsChange(config.id, {
@@ -343,6 +370,10 @@ function PomodoroTileContent({
       tool={pomo}
       onConfigChange={onConfigChange}
       onRemove={onRemove}
+      readoutLabel={isIdle ? `${config.name} settings` : `${config.name} ${pomo.state.currentPhase} time`}
+      readoutValue={isIdle
+        ? `Work ${formatDurationForSpeech(timePartsToMs(pomo.workInputParts))}; break ${formatDurationForSpeech(timePartsToMs(pomo.breakInputParts))}`
+        : formatDurationForSpeech(pomo.displayMs)}
       readoutContent={
         isIdle ? (
           <div className="tile-pomo-idle">

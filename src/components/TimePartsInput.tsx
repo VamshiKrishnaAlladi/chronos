@@ -31,7 +31,11 @@ export function TimePartsInput({
   return (
     <label className="inline-input">
       <span>{label}</span>
-      <div className="time-input-group" aria-invalid={invalid}>
+      <div
+        className="time-input-group"
+        aria-invalid={invalid}
+        aria-hidden={disabled || undefined}
+      >
         {TIME_PART_ORDER.map((part, index) => (
           <span key={part} className="time-segment-wrap">
             <TimeSegmentInput

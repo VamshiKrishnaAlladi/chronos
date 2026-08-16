@@ -1,0 +1,241 @@
+@media (max-width: 1100px),
+(max-height: 760px) {
+  .app-shell {
+    padding: 1.35rem 1.45rem;
+  }
+
+  .app-shell-dashboard {
+    padding-top: clamp(5.5rem, 10vw, 6.5rem);
+  }
+
+  .app-center {
+    width: max-content;
+    max-width: 100%;
+    gap: clamp(0.8rem, 2vw, 1.1rem);
+  }
+
+  .hero-readout-shell {
+    width: max-content;
+    max-width: 100%;
+  }
+
+  .hero-readout-input .time-input-group,
+  .hero-readout-input .time-segment,
+  .hero-readout-input .time-colon {
+    font-size: clamp(3.5rem, 10.5vw, 7rem);
+  }
+
+  .hero-readout-input.tile-readout-input-sm .time-segment,
+  .hero-readout-input.tile-readout-input-sm .time-colon {
+    font-size: clamp(2.25rem, 5.5vw, 4rem);
+  }
+}
+
+@media (max-height: 640px) {
+  .app-shell {
+    padding: 1.15rem 1.35rem 1.2rem;
+  }
+
+  .app-center {
+    gap: 0.85rem;
+  }
+
+  .hero {
+    gap: 0.65rem;
+  }
+
+  .hero-readout-shell {
+    min-height: clamp(9.25rem, 18vmin, 11rem);
+  }
+
+  .hero-meta {
+    min-height: 1rem;
+  }
+
+  .hero-controls {
+    gap: 0.65rem;
+  }
+
+  .tool-menu {
+    bottom: 1.2rem;
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid[data-count='3'] {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 740px) {
+  .app-shell-dashboard {
+    padding-top: 8.375rem;
+  }
+
+  .app-chrome-dashboard {
+    grid-template-columns: 1fr;
+    row-gap: 0.5rem;
+  }
+
+  .app-chrome-dashboard .corner-controls {
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    width: 100%;
+    padding-inline: 1rem;
+  }
+
+  .app-shell-dashboard {
+    padding-top: 8.375rem;
+  }
+
+  .app-shell-dashboard .brand-corner {
+    display: none;
+  }
+
+  .app-chrome {
+    top: 0.75rem;
+    left: 1rem;
+    right: 1rem;
+  }
+
+  .corner-controls {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+  }
+
+  .app-center,
+  .hero,
+  .hero-readout-shell,
+  .tile-readout-input,
+  .tile-readout-input .inline-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .hero-readout-input .time-input-group,
+  .hero-readout-input .time-segment,
+  .hero-readout-input .time-colon {
+    font-size: clamp(2.75rem, 15vw, 5rem);
+  }
+
+  .hero-readout-input.tile-readout-input-sm .time-segment,
+  .hero-readout-input.tile-readout-input-sm .time-colon {
+    font-size: clamp(1.5rem, 8vw, 2.5rem);
+  }
+
+  .tile-pomo-idle,
+  .dashboard-grid[data-count='1'] .tile-pomo-idle {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: auto;
+    justify-items: center;
+  }
+
+  .tile-pomo-label,
+  .dashboard-grid[data-count='1'] .tile-pomo-label {
+    width: auto;
+    max-width: 100%;
+    transform: none;
+    text-align: center;
+  }
+
+  .dashboard-grid {
+    min-width: 0;
+  }
+
+  .dashboard-grid[data-count='2'],
+  .dashboard-grid[data-count='3'],
+  .dashboard-grid[data-count='4'] {
+    grid-template-columns: 1fr;
+  }
+
+  .corner-controls {
+    gap: 0.5rem;
+  }
+
+  .sound-corner-toggle,
+  .runtime-features-toggle,
+  .view-toggle-btn,
+  .tool-menu-item,
+  .tile-start-button,
+  .tile-pill-button,
+  .pomo-session-btn,
+  .tile-menu-trigger,
+  .tile-name,
+  .tile-menu-option,
+  .add-menu-option,
+  .dashboard-fab-btn,
+  .confirm-button {
+    min-height: 44px;
+  }
+
+  .view-toggle-btn {
+    padding-inline: 0.6rem;
+  }
+
+  .tool-menu {
+    left: 1rem;
+    right: 1rem;
+    bottom: 0.75rem;
+    max-width: none;
+    grid-template-columns: repeat(3, max-content);
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .tool-menu-item {
+    display: inline-flex;
+    align-items: center;
+    padding-inline: 0.25rem;
+  }
+
+  .volume-slider-row {
+    min-height: 44px;
+  }
+
+  .runtime-features-popup {
+    position: fixed;
+    top: 4rem;
+    right: 1rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .app-shell-dashboard {
+    padding-top: 11.625rem;
+  }
+
+  .corner-controls {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .runtime-features-popup {
+    top: 8.25rem;
+  }
+
+  .hero-readout-input .time-input-group,
+  .hero-readout-input .time-segment,
+  .hero-readout-input .time-colon {
+    font-size: clamp(2.5rem, 14vw, 3.15rem);
+  }
+
+  .hero-readout-input.tile-readout-input-sm .time-segment,
+  .hero-readout-input.tile-readout-input-sm .time-colon {
+    font-size: clamp(1.4rem, 7vw, 2.25rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-readout-expired {
+    animation: none;
+    opacity: 0.65;
+  }
+}

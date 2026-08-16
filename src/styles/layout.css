@@ -6,21 +6,32 @@
   padding: clamp(1.7rem, 5vw, 2.85rem) clamp(1.7rem, 5vw, 2.5rem);
 }
 
-.corner-controls {
+.app-chrome {
   position: fixed;
   top: clamp(1.25rem, 3.5vw, 1.8rem);
+  left: clamp(1.25rem, 3.5vw, 1.8rem);
   right: clamp(1.25rem, 3.5vw, 1.8rem);
   z-index: 10;
   display: flex;
+  justify-content: flex-end;
+}
+
+.app-chrome-dashboard {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  column-gap: clamp(0.75rem, 2vw, 1.2rem);
+}
+
+.corner-controls {
+  display: flex;
   align-items: center;
+  justify-self: end;
   gap: clamp(0.75rem, 2vw, 1.2rem);
 }
 
 .brand-corner {
-  position: fixed;
-  top: clamp(1.25rem, 3.5vw, 1.8rem);
-  left: clamp(1.25rem, 3.5vw, 1.8rem);
-  z-index: 10;
+  justify-self: start;
 }
 
 .app-center {

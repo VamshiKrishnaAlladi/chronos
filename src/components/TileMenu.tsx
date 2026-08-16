@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 import type { ToolKind, ToolStatus } from '../types'
 import { TOOL_LABELS } from '../types'
 
@@ -14,6 +14,8 @@ const ALL_KINDS: ToolKind[] = ['countdown', 'timer', 'pomodoro']
 export function TileMenu({ currentKind, status, onChangeKind, onRemove }: TileMenuProps) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownId = useId()
 
   useEffect(() => {
     if (!open) return
@@ -24,7 +26,11 @@ export function TileMenu({ currentKind, status, onChangeKind, onRemove }: TileMe
     }
     document.addEventListener('pointerdown', handleClickOutside)
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
     }
     document.addEventListener('keydown', handleEscape)
     return () => {
@@ -39,22 +45,23 @@ export function TileMenu({ currentKind, status, onChangeKind, onRemove }: TileMe
   return (
     <div className="tile-menu" ref={menuRef}>
       <button
+        ref={triggerRef}
         type="button"
         className="tile-menu-trigger"
         onClick={() => setOpen(v => !v)}
         aria-label="Tile options"
         aria-expanded={open}
+        aria-controls={dropdownId}
       >
         ⋮
       </button>
       {open && (
-        <div className="tile-menu-dropdown" role="menu">
+        <div id={dropdownId} className="tile-menu-dropdown">
           {otherKinds.map(kind => (
             <button
               key={kind}
               type="button"
               className="tile-menu-option"
-              role="menuitem"
               disabled={!isIdle}
               onClick={() => {
                 onChangeKind(kind)
@@ -67,7 +74,6 @@ export function TileMenu({ currentKind, status, onChangeKind, onRemove }: TileMe
           <button
             type="button"
             className="tile-menu-option tile-menu-option-danger"
-            role="menuitem"
             onClick={() => {
               onRemove()
               setOpen(false)

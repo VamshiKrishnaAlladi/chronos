@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 
 interface VolumeControlProps {
   volume: number
@@ -8,6 +8,8 @@ interface VolumeControlProps {
 export function VolumeControl({ volume, onChange }: VolumeControlProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popupId = useId()
 
   useEffect(() => {
     if (!open) return
@@ -19,7 +21,11 @@ export function VolumeControl({ volume, onChange }: VolumeControlProps) {
     }
 
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
     }
 
     document.addEventListener('pointerdown', handleClickOutside)
@@ -33,10 +39,12 @@ export function VolumeControl({ volume, onChange }: VolumeControlProps) {
   return (
     <div className="volume-control" ref={ref}>
       <button
+        ref={triggerRef}
         type="button"
         className={`sound-corner-toggle${volume > 0 ? ' sound-corner-toggle-active' : ''}`}
         onClick={() => setOpen(v => !v)}
         aria-expanded={open}
+        aria-controls={popupId}
       >
         <span className="sound-corner-toggle-label">Sound</span>
         <span className="sound-corner-toggle-value">
@@ -48,7 +56,7 @@ export function VolumeControl({ volume, onChange }: VolumeControlProps) {
       </button>
 
       {open && (
-        <div className="volume-popup">
+        <div id={popupId} className="volume-popup">
           <div className="volume-slider-row">
             <span className="volume-side-label">0</span>
             <input

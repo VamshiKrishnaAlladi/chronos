@@ -25,6 +25,7 @@ export function useChronosApp({
   const [pendingToolSwitch, setPendingToolSwitch] = useState<ToolKind | null>(null)
   const [pendingViewSwitch, setPendingViewSwitch] = useState<AppView | null>(null)
   const [soundVolume, setSoundVolume] = useState(initialPrefs.soundVolume)
+  const [keepAwake, setKeepAwake] = useState(initialPrefs.keepAwake)
 
   const pendingViewSwitchRef = useRef(pendingViewSwitch)
   const tools: Record<ToolKind, ToolFace> = { countdown, timer, pomodoro: pomo }
@@ -43,6 +44,7 @@ export function useChronosApp({
     pomoBreakInputParts: pomo.breakInputParts,
     pomoSessionsInput: pomo.sessionsInput,
     soundVolume,
+    keepAwake,
   })
 
   useEffect(() => {
@@ -54,6 +56,7 @@ export function useChronosApp({
       pomoBreakInputParts: pomo.breakInputParts,
       pomoSessionsInput: pomo.sessionsInput,
       soundVolume,
+      keepAwake,
     }
     prefsRef.current = prefs
     saveStoredPreferences(prefs)
@@ -65,15 +68,12 @@ export function useChronosApp({
     pomo.breakInputParts,
     pomo.sessionsInput,
     soundVolume,
+    keepAwake,
   ])
 
   const flushPrefs = useCallback(() => {
     saveStoredPreferencesSync(prefsRef.current)
   }, [])
-
-  useEffect(() => {
-    pendingViewSwitchRef.current = pendingViewSwitch
-  }, [pendingViewSwitch])
 
   useEffect(() => {
     window.addEventListener('beforeunload', flushPrefs)
@@ -98,7 +98,7 @@ export function useChronosApp({
 
     if (appView === 'focus') {
       if (isRunning || isPaused) {
-        setPendingViewSwitch(target)
+        updatePendingViewSwitch(target)
         return
       }
       stopCompletionTone()
@@ -106,6 +106,11 @@ export function useChronosApp({
       return
     }
 
+    updatePendingViewSwitch(target)
+  }
+
+  function updatePendingViewSwitch(target: AppView | null) {
+    pendingViewSwitchRef.current = target
     setPendingViewSwitch(target)
   }
 
@@ -114,18 +119,18 @@ export function useChronosApp({
     tool.stop()
     stopCompletionTone()
     setAppView(pendingViewSwitch)
-    setPendingViewSwitch(null)
+    updatePendingViewSwitch(null)
   }
 
   function handleDashboardLeaveConfirmed() {
     stopCompletionTone()
     const target = pendingViewSwitchRef.current
     if (target) setAppView(target)
-    setPendingViewSwitch(null)
+    updatePendingViewSwitch(null)
   }
 
   function handleDashboardLeaveCancelled() {
-    setPendingViewSwitch(null)
+    updatePendingViewSwitch(null)
   }
 
   function switchTool(next: ToolKind) {
@@ -159,6 +164,8 @@ export function useChronosApp({
     pendingViewSwitch,
     soundVolume,
     setSoundVolume,
+    keepAwake,
+    setKeepAwake,
     tool,
     toolLabel,
     isIdle,
@@ -172,6 +179,6 @@ export function useChronosApp({
     switchTool,
     confirmToolSwitch,
     cancelToolSwitch: () => setPendingToolSwitch(null),
-    cancelFocusViewSwitch: () => setPendingViewSwitch(null),
+    cancelFocusViewSwitch: () => updatePendingViewSwitch(null),
   }
 }

@@ -58,6 +58,27 @@ export function formatDuration(ms: number): string {
   return [hours, minutes, seconds].map((value) => value.toString().padStart(2, '0')).join(':')
 }
 
+export function formatDurationForSpeech(ms: number, includeMilliseconds = false): string {
+  const total = Math.max(Math.floor(ms), 0)
+  const totalSeconds = Math.floor(total / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const milliseconds = total % 1000
+
+  const parts: string[] = []
+  if (hours > 0) parts.push(`${hours} ${hours === 1 ? 'hour' : 'hours'}`)
+  if (minutes > 0) parts.push(`${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`)
+  if (seconds > 0 || (!hours && !minutes && !includeMilliseconds)) {
+    parts.push(`${seconds} ${seconds === 1 ? 'second' : 'seconds'}`)
+  }
+  if (includeMilliseconds && (milliseconds > 0 || parts.length === 0)) {
+    parts.push(`${milliseconds} ${milliseconds === 1 ? 'millisecond' : 'milliseconds'}`)
+  }
+
+  return parts.join(', ')
+}
+
 export function msToTimeParts(ms: number): TimeParts {
   const totalSeconds = Math.max(Math.floor(ms / 1000), 0)
   return {

@@ -23,4 +23,21 @@ describe('VolumeControl', () => {
 
     expect(screen.getByText('Off')).toBeInTheDocument()
   })
+
+  it('exposes a disclosure relationship and restores focus on Escape', async () => {
+    const user = userEvent.setup()
+    render(<VolumeControl volume={30} onChange={() => {}} />)
+
+    const trigger = screen.getByRole('button', { name: /sound/i })
+    await user.click(trigger)
+    const slider = screen.getByRole('slider', { name: /sound volume/i })
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).toHaveAttribute('aria-controls', slider.closest('.volume-popup')?.id)
+
+    slider.focus()
+    await user.keyboard('{Escape}')
+    expect(trigger).toHaveFocus()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
 })

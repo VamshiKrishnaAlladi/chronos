@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 import type { PageTitleTimer, ToolKind } from '../types'
 import { MAX_DASHBOARD_TILES, TOOL_LABELS } from '../types'
 import { TimerTile } from './TimerTile'
@@ -12,6 +12,8 @@ import { useDashboardController } from '../hooks/useDashboardController'
 function AddTileFab({ onAdd }: { onAdd: (kind: ToolKind) => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownId = useId()
 
   useEffect(() => {
     if (!open) return
@@ -20,7 +22,11 @@ function AddTileFab({ onAdd }: { onAdd: (kind: ToolKind) => void }) {
     }
     document.addEventListener('pointerdown', handleClickOutside)
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
     }
     document.addEventListener('keydown', handleEscape)
     return () => {
@@ -32,21 +38,23 @@ function AddTileFab({ onAdd }: { onAdd: (kind: ToolKind) => void }) {
   return (
     <div className="dashboard-fab" ref={ref}>
       <button
+        ref={triggerRef}
         type="button"
         className="dashboard-fab-btn"
         onClick={() => setOpen(v => !v)}
         aria-label="Add timer"
+        aria-expanded={open}
+        aria-controls={dropdownId}
       >
         Add Timer
       </button>
       {open && (
-        <div className="fab-menu-dropdown" role="menu">
+        <div id={dropdownId} className="fab-menu-dropdown">
           {(['countdown', 'timer', 'pomodoro'] as ToolKind[]).map(kind => (
             <button
               key={kind}
               type="button"
               className="add-menu-option"
-              role="menuitem"
               onClick={() => {
                 onAdd(kind)
                 setOpen(false)
@@ -64,6 +72,8 @@ function AddTileFab({ onAdd }: { onAdd: (kind: ToolKind) => void }) {
 function EmptyState({ onAdd }: { onAdd: (kind: ToolKind) => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownId = useId()
 
   useEffect(() => {
     if (!open) return
@@ -72,7 +82,11 @@ function EmptyState({ onAdd }: { onAdd: (kind: ToolKind) => void }) {
     }
     document.addEventListener('pointerdown', handleClickOutside)
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
     }
     document.addEventListener('keydown', handleEscape)
     return () => {
@@ -85,22 +99,24 @@ function EmptyState({ onAdd }: { onAdd: (kind: ToolKind) => void }) {
     <div className="dashboard-empty" ref={ref}>
       <div className="dashboard-empty-anchor">
         <button
+          ref={triggerRef}
           type="button"
           className="dashboard-empty-btn"
           onClick={() => setOpen(v => !v)}
           aria-label="Add timer"
+          aria-expanded={open}
+          aria-controls={dropdownId}
         >
           <span className="dashboard-empty-icon">+</span>
           <span className="dashboard-empty-label">Add your first timer</span>
         </button>
         {open && (
-          <div className="add-menu-dropdown" role="menu">
+          <div id={dropdownId} className="add-menu-dropdown">
             {(['countdown', 'timer', 'pomodoro'] as ToolKind[]).map(kind => (
               <button
                 key={kind}
                 type="button"
                 className="add-menu-option"
-                role="menuitem"
                 onClick={() => {
                   onAdd(kind)
                   setOpen(false)
@@ -125,9 +141,10 @@ interface DashboardViewProps {
   onLeaveConfirmed: () => void
   onLeaveCancelled: () => void
   onTitleTimersChange: (timers: PageTitleTimer[]) => void
+  onRunningChange: (running: boolean) => void
 }
 
-export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled, onTitleTimersChange }: DashboardViewProps) {
+export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled, onTitleTimersChange, onRunningChange }: DashboardViewProps) {
   const {
     tiles,
     showLeaveConfirm,
@@ -144,6 +161,7 @@ export function DashboardView({ pendingLeave, onLeaveConfirmed, onLeaveCancelled
     onLeaveConfirmed,
     onLeaveCancelled,
     onTitleTimersChange,
+    onRunningChange,
   })
 
   return (

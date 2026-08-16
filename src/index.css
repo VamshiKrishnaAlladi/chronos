@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Orbitron:wght@500;700&display=swap');
-
 :root {
   color-scheme: dark;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -14,7 +12,7 @@
   --font-display: 'Orbitron', 'Inter', sans-serif;
   --bg: #07090d;
   --text: #aab4c3;
-  --text-muted: #6d7682;
+  --text-muted: #818b99;
   --text-strong: #f5f7fb;
   --line: rgba(245, 247, 251, 0.12);
   --accent: #92f6d5;
@@ -23,6 +21,18 @@
 
 * {
   box-sizing: border-box;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 html {

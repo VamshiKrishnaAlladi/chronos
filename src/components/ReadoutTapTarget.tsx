@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { PauseIcon, PlayIcon } from './icons'
 
 interface ReadoutTapTargetProps {
@@ -7,6 +7,8 @@ interface ReadoutTapTargetProps {
   isRunning: boolean
   expired?: boolean
   className?: string
+  readoutLabel: string
+  readoutValue: string
   onTap: () => void
 }
 
@@ -16,6 +18,8 @@ export function ReadoutTapTarget({
   isRunning,
   expired = false,
   className = '',
+  readoutLabel,
+  readoutValue,
   onTap,
 }: ReadoutTapTargetProps) {
   function handleKey(e: React.KeyboardEvent) {
@@ -27,23 +31,30 @@ export function ReadoutTapTarget({
 
   const classes = `tile-readout-wrap${isTappable ? ' tile-readout-tappable' : ''}${expired ? ' tile-readout-expired' : ''}${className ? ` ${className}` : ''}`
 
+  const accessibleValue = `${readoutLabel}: ${readoutValue}`
+
   return (
-    <div
-      className={classes}
-      {...(isTappable ? {
-        onClick: onTap,
-        onKeyDown: handleKey,
-        role: 'button',
-        tabIndex: 0,
-        'aria-label': isRunning ? 'Pause' : 'Resume',
-      } : {})}
-    >
-      {children}
-      {isTappable && (
-        <span className="tile-readout-overlay">
-          {isRunning ? <PauseIcon /> : <PlayIcon />}
-        </span>
-      )}
-    </div>
+    <Fragment>
+      <div
+        className={classes}
+        {...(isTappable ? {
+          onClick: onTap,
+          onKeyDown: handleKey,
+          role: 'button',
+          tabIndex: 0,
+          'aria-label': `${isRunning ? 'Pause' : 'Resume'} ${accessibleValue}`,
+        } : {})}
+      >
+        {children}
+        {isTappable && (
+          <span className="tile-readout-overlay" aria-hidden="true">
+            {isRunning ? <PauseIcon /> : <PlayIcon />}
+          </span>
+        )}
+      </div>
+      <span className="sr-only" role="timer" aria-live="off" aria-label={accessibleValue}>
+        {readoutValue}
+      </span>
+    </Fragment>
   )
 }
