@@ -69,6 +69,7 @@ export interface StoredPreferences {
   pomoBreakInputParts: TimeParts
   pomoSessionsInput: string
   soundVolume: number
+  keepAwake: boolean
 }
 
 export interface PageTitleTimer {

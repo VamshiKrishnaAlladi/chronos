@@ -39,4 +39,15 @@ describe('pomodoro reducer', () => {
     expect(next.remainingMs).toBe(1500)
     expect(next.endsAt).toBe(4500)
   })
+
+  it('uses the absolute phase end time when a delayed tick completes the phase', () => {
+    const running = reducePomodoro(createPomodoroState(config), {
+      type: 'start',
+      config,
+      now: 1000,
+    })
+
+    const done = reducePomodoro(running, { type: 'tick', now: 4000 })
+    expect(done.completedAt).toBe(2500)
+  })
 })

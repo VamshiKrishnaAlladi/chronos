@@ -2,6 +2,12 @@ import type { AppView, StoredPreferences, ToolKind } from '../types'
 import { splitTimeParts, parseStoredTimeParts } from './time'
 import { createLocalPreferenceStore } from './localPreferenceStore'
 import {
+  createVersionedPayload,
+  isRecord,
+  parseSessionsInput,
+  parseVersionedPayload,
+} from './persistenceSchema'
+import {
   DEFAULT_COUNTDOWN_INPUT,
   DEFAULT_POMODORO_BREAK_INPUT,
   DEFAULT_POMODORO_INPUT,
@@ -10,6 +16,7 @@ import {
 } from './defaults'
 
 const PREFERENCES_STORAGE_KEY = 'chronos-preferences-v1'
+export const PREFERENCES_VERSION = 1
 
 export {
   DEFAULT_COUNTDOWN_INPUT,
@@ -26,10 +33,13 @@ const DEFAULTS: StoredPreferences = {
   pomoBreakInputParts: splitTimeParts(DEFAULT_POMODORO_BREAK_INPUT),
   pomoSessionsInput: DEFAULT_POMODORO_SESSIONS,
   soundVolume: DEFAULT_SOUND_VOLUME,
+  keepAwake: false,
 }
 
 export function parseStoredPreferences(value: unknown): StoredPreferences {
-  const parsed = value as Partial<StoredPreferences> & { soundMuted?: boolean }
+  const payload = parseVersionedPayload(value, PREFERENCES_VERSION)
+  if (!payload.supported || !isRecord(payload.data)) return { ...DEFAULTS }
+  const parsed = payload.data as Partial<StoredPreferences> & { soundMuted?: boolean }
 
   const activeTool: ToolKind =
     parsed.activeTool === 'timer'
@@ -40,10 +50,7 @@ export function parseStoredPreferences(value: unknown): StoredPreferences {
 
   const appView: AppView = parsed.appView === 'dashboard' ? 'dashboard' : 'focus'
 
-  const pomoSessionsInput =
-    typeof parsed.pomoSessionsInput === 'string' && /^\d{1,2}$/.test(parsed.pomoSessionsInput)
-      ? parsed.pomoSessionsInput
-      : DEFAULT_POMODORO_SESSIONS
+  const pomoSessionsInput = parseSessionsInput(parsed.pomoSessionsInput, DEFAULT_POMODORO_SESSIONS)
 
   return {
     activeTool,
@@ -53,6 +60,7 @@ export function parseStoredPreferences(value: unknown): StoredPreferences {
     pomoBreakInputParts: parseStoredTimeParts(parsed.pomoBreakInputParts, DEFAULT_POMODORO_BREAK_INPUT),
     pomoSessionsInput,
     soundVolume: parseStoredVolume(parsed.soundVolume, parsed.soundMuted),
+    keepAwake: parsed.keepAwake === true,
   }
 }
 
@@ -69,6 +77,7 @@ const store = createLocalPreferenceStore({
   key: PREFERENCES_STORAGE_KEY,
   defaults: DEFAULTS,
   parse: parseStoredPreferences,
+  serialize: (value) => createVersionedPayload(PREFERENCES_VERSION, value),
 })
 
 export function saveStoredPreferences(preferences: StoredPreferences): void {

@@ -40,13 +40,14 @@ export function reduceCountdown(state: CountdownState, event: CountdownEvent): C
       const rawRemaining = Math.max(state.endsAt - event.now, 0)
       const remainingMs = rawRemaining === 0 ? 0 : Math.ceil(rawRemaining / 1000) * 1000
       if (remainingMs === 0) {
+        const completedAt = state.endsAt
         return {
           ...state,
           remainingMs: 0,
-          overrunMs: 0,
+          overrunMs: Math.max(Math.floor((event.now - completedAt) / 1000), 0) * 1000,
           endsAt: null,
           status: 'done',
-          completedAt: event.now,
+          completedAt,
           alertedAt: null,
         }
       }

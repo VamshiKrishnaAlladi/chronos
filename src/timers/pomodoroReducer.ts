@@ -68,12 +68,13 @@ export function reducePomodoro(state: PomodoroState, event: PomodoroEvent): Pomo
       const rawRemainingMs = Math.max(state.endsAt - event.now, 0)
       const remainingMs = rawRemainingMs === 0 ? 0 : Math.ceil(rawRemainingMs / 1000) * 1000
       if (remainingMs === 0) {
+        const completedAt = state.endsAt
         return {
           ...state,
           remainingMs: 0,
           endsAt: null,
           status: 'done',
-          completedAt: event.now,
+          completedAt,
           alertedAt: null,
         }
       }

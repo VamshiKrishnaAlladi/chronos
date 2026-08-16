@@ -3,6 +3,11 @@ import type { DashboardTileConfig, PageTitleTimer, ToolKind, ToolStatus } from '
 import { MAX_DASHBOARD_TILES } from '../types'
 import { stopCompletionTone } from '../lib/notifications'
 import {
+  clearDashboardRuntimeSessions,
+  clearRuntimeSession,
+  dashboardRuntimeSessionId,
+} from '../lib/runtimeSessions'
+import {
   createDefaultTileConfig,
   loadDashboardPreferences,
   saveDashboardPreferences,
@@ -14,6 +19,7 @@ interface UseDashboardControllerOptions {
   onLeaveConfirmed: () => void
   onLeaveCancelled: () => void
   onTitleTimersChange: (timers: PageTitleTimer[]) => void
+  onRunningChange: (running: boolean) => void
 }
 
 export function useDashboardController({
@@ -21,6 +27,7 @@ export function useDashboardController({
   onLeaveConfirmed,
   onLeaveCancelled,
   onTitleTimersChange,
+  onRunningChange,
 }: UseDashboardControllerOptions) {
   const [tiles, setTiles] = useState<DashboardTileConfig[]>(() => loadDashboardPreferences().tiles)
   const [hasActiveTile, setHasActiveTile] = useState(false)
@@ -50,6 +57,7 @@ export function useDashboardController({
   const recomputeActiveTimers = useCallback(() => {
     const active: PageTitleTimer[] = []
     let nextHasActiveTile = false
+    let nextHasRunningTile = false
 
     for (const tile of tilesRef.current) {
       const status = tileStatusesRef.current[tile.id]
@@ -57,6 +65,7 @@ export function useDashboardController({
       if (status === 'running' || status === 'paused') {
         nextHasActiveTile = true
       }
+      if (status === 'running') nextHasRunningTile = true
       if (!timer) continue
 
       const showRemaining = (status === 'running' || status === 'paused') && !timer.overrun && timer.ms > 0
@@ -68,7 +77,8 @@ export function useDashboardController({
 
     onTitleTimersChange(active)
     setHasActiveTile(nextHasActiveTile)
-  }, [onTitleTimersChange])
+    onRunningChange(nextHasRunningTile)
+  }, [onRunningChange, onTitleTimersChange])
 
   useEffect(() => {
     tilesRef.current = tiles
@@ -88,8 +98,11 @@ export function useDashboardController({
   }, [flushSave])
 
   useEffect(() => {
-    return () => onTitleTimersChange([])
-  }, [onTitleTimersChange])
+    return () => {
+      onTitleTimersChange([])
+      onRunningChange(false)
+    }
+  }, [onRunningChange, onTitleTimersChange])
 
   useEffect(() => {
     if (pendingLeave && !hasActiveTile) {
@@ -99,6 +112,7 @@ export function useDashboardController({
 
   const handleConfigChange = useCallback((tileId: string, updates: Partial<DashboardTileConfig>) => {
     if (updates.kind) {
+      clearRuntimeSession(dashboardRuntimeSessionId(tileId))
       delete tileInputsRef.current[tileId]
       delete tileStatusesRef.current[tileId]
       delete tileTitleTimersRef.current[tileId]
@@ -119,6 +133,7 @@ export function useDashboardController({
   }, [recomputeActiveTimers])
 
   const handleRemove = useCallback((tileId: string) => {
+    clearRuntimeSession(dashboardRuntimeSessionId(tileId))
     delete tileInputsRef.current[tileId]
     delete tileStatusesRef.current[tileId]
     delete tileTitleTimersRef.current[tileId]
@@ -157,6 +172,7 @@ export function useDashboardController({
 
   function confirmLeave() {
     stopCompletionTone()
+    clearDashboardRuntimeSessions(tilesRef.current.map((tile) => tile.id))
     onLeaveConfirmedRef.current()
   }
 

@@ -28,6 +28,11 @@ import {
   pomodoroPhaseLabel,
   reducePomodoro,
 } from '../timers/pomodoroReducer'
+import {
+  focusRuntimeSessionId,
+  loadPomodoroRuntimeSession,
+} from '../lib/runtimeSessions'
+import { useRuntimeSessionState } from './useRuntimeSessionState'
 
 // ---------------------------------------------------------------------------
 // Return type
@@ -61,6 +66,7 @@ export function usePomodoro(
   initialWorkParts: TimeParts,
   initialBreakParts: TimeParts,
   initialSessionsInput: string,
+  runtimeSessionId = focusRuntimeSessionId('pomodoro'),
 ): UsePomodoroReturn {
   const [workInputParts, setWorkInputParts] = useState<TimeParts>(initialWorkParts)
   const [breakInputParts, setBreakInputParts] = useState<TimeParts>(initialBreakParts)
@@ -78,15 +84,16 @@ export function usePomodoro(
   }
   const sessionsRef = useRef<HTMLInputElement>(null)
 
-  const [state, setState] = useState<PomodoroState>(() => {
+  const [state, setState] = useRuntimeSessionState<PomodoroState>(runtimeSessionId, 'pomodoro', () => {
     const workMs = timePartsToMs(normalizeTimeParts(initialWorkParts))
     const breakMs = timePartsToMs(normalizeTimeParts(initialBreakParts))
     const sessions = Number(initialSessionsInput)
-    return createPomodoroState({
+    const fallback = createPomodoroState({
       workDurationMs: workMs || parseHmsInput(DEFAULT_POMODORO_INPUT),
       breakMs: breakMs || parseHmsInput(DEFAULT_POMODORO_BREAK_INPUT),
       sessionsPerCycle: sessions > 0 ? sessions : Number(DEFAULT_POMODORO_SESSIONS),
     })
+    return loadPomodoroRuntimeSession(runtimeSessionId, fallback)
   })
 
   // --- Derived values ---
@@ -163,9 +170,12 @@ export function usePomodoro(
   useTickInterval(
     state.status === 'running' && state.endsAt !== null,
     (now) => {
-      setState((prev) => reducePomodoro(prev, { type: 'tick', now }))
+      setState(
+        (prev) => reducePomodoro(prev, { type: 'tick', now }),
+        (previous, next) => previous.status !== next.status,
+      )
     },
-    [state.endsAt],
+    [state.endsAt, setState],
   )
 
   // --- Alert effect ---

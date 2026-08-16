@@ -8,8 +8,17 @@ import {
   DEFAULT_POMODORO_SESSIONS,
 } from './defaults'
 import { createLocalPreferenceStore } from './localPreferenceStore'
+import {
+  createVersionedPayload,
+  isRecord,
+  parseSessionsInput,
+  parseStorageId,
+  parseTileName,
+  parseVersionedPayload,
+} from './persistenceSchema'
 
 const DASHBOARD_STORAGE_KEY = 'chronos-dashboard-v1'
+export const DASHBOARD_PREFERENCES_VERSION = 1
 
 export interface DashboardPreferences {
   tiles: DashboardTileConfig[]
@@ -18,38 +27,39 @@ export interface DashboardPreferences {
 const DEFAULTS: DashboardPreferences = { tiles: [] }
 
 export function parseDashboardPreferences(value: unknown): DashboardPreferences {
-  const parsed = value as { tiles?: unknown }
-  if (!Array.isArray(parsed.tiles)) return DEFAULTS
+  const payload = parseVersionedPayload(value, DASHBOARD_PREFERENCES_VERSION)
+  if (!payload.supported || !isRecord(payload.data) || !Array.isArray(payload.data.tiles)) {
+    return { ...DEFAULTS }
+  }
 
   const validKinds = ['countdown', 'timer', 'pomodoro']
+  const seenIds = new Set<string>()
+  const tiles: DashboardTileConfig[] = []
 
-  const tiles: DashboardTileConfig[] = parsed.tiles
-    .slice(0, 4)
-    .filter((t: unknown): t is Record<string, unknown> => {
-      if (!t || typeof t !== 'object') return false
-      const obj = t as Record<string, unknown>
-      return typeof obj.id === 'string' && validKinds.includes(obj.kind as string)
-    })
-    .map((t: Record<string, unknown>) => {
-      const kind = t.kind as ToolKind
-      const defaultInput = kind === 'pomodoro'
-        ? DEFAULT_POMODORO_INPUT
-        : kind === 'timer'
-          ? '00:00:00'
-          : DEFAULT_COUNTDOWN_INPUT
+  for (const candidate of payload.data.tiles) {
+    if (tiles.length >= 4 || !isRecord(candidate) || !validKinds.includes(candidate.kind as string)) {
+      continue
+    }
+    const id = parseStorageId(candidate.id)
+    if (!id || seenIds.has(id)) continue
+    seenIds.add(id)
 
-      return {
-        id: t.id as string,
-        kind,
-        name: typeof t.name === 'string' ? t.name : TOOL_LABELS[kind],
-        inputParts: parseStoredTimeParts(t.inputParts, defaultInput),
-        breakInputParts: parseStoredTimeParts(t.breakInputParts, DEFAULT_POMODORO_BREAK_INPUT),
-        sessionsInput:
-          typeof t.sessionsInput === 'string' && /^\d{1,2}$/.test(t.sessionsInput)
-            ? t.sessionsInput
-            : DEFAULT_POMODORO_SESSIONS,
-      }
+    const kind = candidate.kind as ToolKind
+    const defaultInput = kind === 'pomodoro'
+      ? DEFAULT_POMODORO_INPUT
+      : kind === 'timer'
+        ? '00:00:00'
+        : DEFAULT_COUNTDOWN_INPUT
+
+    tiles.push({
+      id,
+      kind,
+      name: parseTileName(candidate.name, TOOL_LABELS[kind]),
+      inputParts: parseStoredTimeParts(candidate.inputParts, defaultInput),
+      breakInputParts: parseStoredTimeParts(candidate.breakInputParts, DEFAULT_POMODORO_BREAK_INPUT),
+      sessionsInput: parseSessionsInput(candidate.sessionsInput, DEFAULT_POMODORO_SESSIONS),
     })
+  }
 
   return { tiles }
 }
@@ -58,6 +68,7 @@ const store = createLocalPreferenceStore({
   key: DASHBOARD_STORAGE_KEY,
   defaults: DEFAULTS,
   parse: parseDashboardPreferences,
+  serialize: (value) => createVersionedPayload(DASHBOARD_PREFERENCES_VERSION, value),
 })
 
 export function loadDashboardPreferences(): DashboardPreferences {
@@ -74,6 +85,19 @@ export function saveDashboardPreferencesSync(prefs: DashboardPreferences): void 
 
 let tileCounter = 0
 
+function createTileId(): string {
+  try {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+      return `tile-${globalThis.crypto.randomUUID()}`
+    }
+  } catch {
+    // Continue with the monotonic fallback when the platform implementation fails.
+  }
+
+  tileCounter += 1
+  return `tile-${Date.now().toString(36)}-${tileCounter.toString(36)}`
+}
+
 export function createDefaultTileConfig(kind: ToolKind): DashboardTileConfig {
   const defaultInput = kind === 'pomodoro'
     ? DEFAULT_POMODORO_INPUT
@@ -82,7 +106,7 @@ export function createDefaultTileConfig(kind: ToolKind): DashboardTileConfig {
       : DEFAULT_COUNTDOWN_INPUT
 
   return {
-    id: `tile-${Date.now()}-${++tileCounter}`,
+    id: createTileId(),
     kind,
     name: TOOL_LABELS[kind],
     inputParts: splitTimeParts(defaultInput),

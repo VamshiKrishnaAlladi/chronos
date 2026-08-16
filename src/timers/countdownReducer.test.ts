@@ -33,4 +33,16 @@ describe('countdown reducer', () => {
     expect(resumed.status).toBe('running')
     expect(resumed.endsAt).toBe(8000)
   })
+
+  it('uses the absolute end time when a delayed tick completes the countdown', () => {
+    const running = reduceCountdown(createCountdownState(5000), {
+      type: 'start',
+      durationMs: 5000,
+      now: 1000,
+    })
+
+    const done = reduceCountdown(running, { type: 'tick', now: 8200 })
+    expect(done.completedAt).toBe(6000)
+    expect(done.overrunMs).toBe(2000)
+  })
 })
